@@ -25,7 +25,8 @@ class  OriginalIcp:public icp_interface
        source.swap(target);
        tar.resize(source.size());
      }
-    
+    Eigen::Matrix3f R=  Eigen::Matrix3f::Identity();
+    Eigen::Vector3f t{0,0,0}; 
 
      for (int inter = 0; inter < 10; inter++) {
        for (int i = 0; i < source.size(); i++) {
@@ -47,14 +48,17 @@ class  OriginalIcp:public icp_interface
        GetMatrixOffset(tar, tar_mean);
        auto sor_mean = GetMeanVector(sor);
        GetMatrixOffset(sor, sor_mean);
-
+       auto diff_vector  =  tar_mean-sor_mean;
+       t+= diff_vector;
        Eigen::Matrix3f M = sor.reverse() * tar;
        Eigen::JacobiSVD<Eigen::MatrixXf> svd(
            M, Eigen::ComputeThinU | Eigen::ComputeThinV);
        Eigen::Matrix3f U, V, R;
        U = svd.matrixU();
        V = svd.matrixV();
-       R = U * V.transpose();
+       R *= (U * V.transpose());
+
+       
     }
    }
 
