@@ -142,6 +142,9 @@ class IcpMatcher : public MatcherInterface {
   pcl::IterativeClosestPoint<pcl::PointNormal, pcl::PointNormal> icp;
 };
 
+
+
+
 class NdtMatcher : public MatcherInterface {
  public:
   NdtMatcher() {
