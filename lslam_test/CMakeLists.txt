@@ -18,7 +18,7 @@ find_package(PCL REQUIRED QUIET)
 set(CMAKE_MODULE_PATH  ${PROJECT_SOURCE_DIR}/../Cmake/)
 find_package(Eigen3 REQUIRED)
 find_package(Glog REQUIRED)
-
+find_package(GTest  REQUIRED)
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
 
@@ -130,6 +130,7 @@ include_directories(
 link_directories(
 	${PCL_LIBRARY_DIRS}
   ${GLOG_LIBRARIES}
+  ${GTEST_LIBRARIES}
 )
 ## Declare a C++ library
 # add_library(${PROJECT_NAME}
@@ -145,6 +146,7 @@ link_directories(
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
 add_executable(${PROJECT_NAME}_node src/lslam_test.cpp)
+add_executable(icp_implementation_test src/icp_implementation_test.cpp)
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
 ## target back to the shorter version for ease of user use
@@ -156,15 +158,23 @@ add_executable(${PROJECT_NAME}_node src/lslam_test.cpp)
 # add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 # Specify libraries to link a library or executable target against
- target_link_libraries(${PROJECT_NAME}_node
+ target_link_libraries(${PROJECT_NAME}_node  
    ${catkin_LIBRARIES}
    ${PCL_LIBRARIES}
    ${EIGEN3_LIBS}
   ${GLOG_LIBRARIES}
-
+  ${GTEST_LIBRARIES}
    -pthread
  )
-
+ target_link_libraries(icp_implementation_test 
+   ${catkin_LIBRARIES}
+   ${PCL_LIBRARIES}
+   ${EIGEN3_LIBS}
+  ${GLOG_LIBRARIES}
+  ${GTEST_LIBRARIES}
+gtest_main.a
+   -pthread
+ )
 #############
 ## Install ##
 #############

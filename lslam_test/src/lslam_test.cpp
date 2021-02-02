@@ -113,12 +113,12 @@ class IcpMatcher : public MatcherInterface {
     typedef pcl::registration::TransformationEstimationPointToPlaneLLS<
         pcl::PointNormal, pcl::PointNormal>
         PointToPlane;
-    typedef pcl::registration::TransformationEstimationSymmetricPointToPlaneLLS<
-        pcl::PointNormal, pcl::PointNormal>
-        SymmPointToPlane;
+    //typedef pcl::registration::TransformationEstimationSymmetricPointToPlaneLLS<
+     //   pcl::PointNormal, pcl::PointNormal>
+      //  SymmPointToPlane;
 
-   // PointToPlane::Ptr point_to_plane(new PointToPlane);
-    SymmPointToPlane::Ptr point_to_plane(new SymmPointToPlane);
+    PointToPlane::Ptr point_to_plane(new PointToPlane);
+//    SymmPointToPlane::Ptr point_to_plane(new SymmPointToPlane);
 
     icp.setTransformationEstimation(point_to_plane);
     std::vector<int> indices;
