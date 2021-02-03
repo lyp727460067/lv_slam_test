@@ -26,10 +26,10 @@ TEST_F(IcpImplementationTest, MatchTest) {
     target_points.push_back(target_point);
   }
   Eigen::Matrix4f init_pose = Eigen::Matrix4f::Identity();
+  Eigen::Matrix4f pose_estimate;
+  original_icp_.Match(IcpInterface::Option{}, init_pose, source, target_points, pose_estimate);
 
-  original_icp_.Match(IcpInterface::Option{}, init_pose, source, target_points);
-
-  Eigen::Matrix3f diff = R.transpose() * init_pose.block<3, 3>(0, 0);
+  Eigen::Matrix3f diff = R.transpose() *pose_estimate.block<3, 3>(0, 0);
   EXPECT_NEAR(diff(0, 0), 1, 0.01);
   EXPECT_NEAR(diff(1, 1), 1, 0.01);
   EXPECT_NEAR(diff(2, 2), 1, 0.01);

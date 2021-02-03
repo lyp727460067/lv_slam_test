@@ -1,15 +1,16 @@
 #ifndef _ICP_IMPLEMENTATION_H
 #define   _ICP_IMPLEMENTATION_H
-#include "Eigen/Core"
-#include <vector>
-#include <limits>
-#include <Eigen/SVD>  
-#include <Eigen/Dense>   
-#include <algorithm>
-#include  "glog/logging.h"
-#include <tuple>
+#include <Eigen/Dense>
 #include <Eigen/Geometry>
-#include "ceres/ceres.h"
+#include <Eigen/SVD>
+#include <algorithm>
+#include <limits>
+#include <tuple>
+#include <vector>
+
+#include "Eigen/Core"
+#include "glog/logging.h"
+//#include "ceres/ceres.h"
 class  IcpInterface
 {
   public:
@@ -17,17 +18,20 @@ class  IcpInterface
   {
     int inter_num =0;
     double err_tolerance  = 0.1;
-  }; 
-  virtual bool Match(const Option& option,Eigen::Matrix4f& init_pose,
-                      std::vector<Eigen::Vector3f> source_points,
-                      std::vector<Eigen::Vector3f> target_points) = 0;
+  };
+  virtual bool Match(const Option& option, const Eigen::Matrix4f& init_pose,
+                     std::vector<Eigen::Vector3f> source_points,
+                     std::vector<Eigen::Vector3f> target_points,
+                     Eigen::Matrix4f& pose_estimate) = 0;
 };
 
 class  OriginalIcp:public IcpInterface
 {
   public:
-   bool Match(const Option& option,Eigen::Matrix4f& init_pose, std::vector<Eigen::Vector3f> source_points,
-              std::vector<Eigen::Vector3f> target_points) {
+   bool Match(const Option& option, const Eigen::Matrix4f& init_pose,
+              std::vector<Eigen::Vector3f> source_points,
+              std::vector<Eigen::Vector3f> target_points,
+              Eigen::Matrix4f& pose_estimate) {
      bool reverse = false;
 
      Eigen::MatrixXf source_temp = Eigen::MatrixXf::Zero(source_points.size(), 3);
@@ -56,9 +60,9 @@ class  OriginalIcp:public IcpInterface
      Eigen::MatrixX4f Tst = GetPairPointsTransform({source, source_temp});
      T.block<3, 3>(0, 0) = Tst.block<3, 3>(0, 0);
      T.block<3, 1>(0, 3) = Tst.block<3, 1>(0, 3);
-     init_pose = T;
-     return true; 
-    }
+     pose_estimate = T;
+     return true;
+   }
 
   private:
    Eigen::Vector3f  GetMeanVector(const Eigen::MatrixXf& m) {
@@ -132,18 +136,11 @@ class  OpitmizeIcp :public IcpInterface
 
   }
 
-   bool Match(const Option& option, Eigen::Matrix4f& init_pose,
+   bool Match(const Option& option, const Eigen::Matrix4f& init_pose,
               std::vector<Eigen::Vector3f> source_points,
-              std::vector<Eigen::Vector3f> target_points) {
-   
-                
- }
+              std::vector<Eigen::Vector3f> target_points,
+              Eigen::Matrix4f& pose_estimate) {}
 };
 
-class PLIcp : public IcpInterface 
-{
-
-
-};
 
 #endif

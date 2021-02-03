@@ -59,7 +59,7 @@ double leaf_size  =  10;
 class MatcherInterface {
  public:
   class Option {};
-  virtual bool Match(Eigen::Matrix4f init_pose,
+  virtual bool ScanMatch(Eigen::Matrix4f init_pose,
                      pcl::PointCloud<PointType>::Ptr Source,
                      pcl::PointCloud<PointType>::Ptr Target,
                      const Option option, double score,
@@ -101,7 +101,7 @@ class IcpMatcher : public MatcherInterface {
     icp.setEuclideanFitnessEpsilon(0.01);
     icp.setRANSACIterations(50);
   }
-  bool Match(Eigen::Matrix4f init_pose, pcl::PointCloud<PointType>::Ptr Source,
+  bool ScanMatch(Eigen::Matrix4f init_pose, pcl::PointCloud<PointType>::Ptr Source,
              pcl::PointCloud<PointType>::Ptr Target, const Option option,
              double score, Eigen::Matrix4f& expect_pose) {
 
@@ -153,7 +153,7 @@ class NdtMatcher : public MatcherInterface {
     ndt.setResolution(5.0);
     ndt.setMaximumIterations(30);
   }
-  bool Match(Eigen::Matrix4f init_pose, pcl::PointCloud<PointType>::Ptr Source,
+  bool ScanMatch(Eigen::Matrix4f init_pose, pcl::PointCloud<PointType>::Ptr Source,
              pcl::PointCloud<PointType>::Ptr Target, const Option option,
              double score, Eigen::Matrix4f& expect_pose) {
 
@@ -225,7 +225,7 @@ void NdtProgress(void) {
     }
     std::unique_ptr<MatcherInterface> matcher = std::unique_ptr<IcpMatcher>(new IcpMatcher());
     double score = 0.0;
-    if (matcher->Match(delta_pose, filter_cloud, pre_cloud,
+    if (matcher->ScanMatch(delta_pose, filter_cloud, pre_cloud,
                        MatcherInterface::Option(), score, delta_pose)) {
       std::cout << "\nICP has converged, score is " << score << std::endl;
       if (score < 0.1) {

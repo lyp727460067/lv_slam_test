@@ -19,6 +19,7 @@ set(CMAKE_MODULE_PATH  ${PROJECT_SOURCE_DIR}/../Cmake/)
 find_package(Eigen3 REQUIRED)
 find_package(Glog REQUIRED)
 find_package(GTest  REQUIRED)
+find_package(Ceres REQUIRED)
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
 
@@ -126,11 +127,13 @@ include_directories(
 	${PCL_INCLUDE_DIRS}
   ${catkin_INCLUDE_DIRS}
   ${Glog_INLUCDE_DIRS}
+  ${CERES_INCLUDE_DIRS}
 )
 link_directories(
 	${PCL_LIBRARY_DIRS}
   ${GLOG_LIBRARIES}
   ${GTEST_LIBRARIES}
+
 )
 ## Declare a C++ library
 # add_library(${PROJECT_NAME}
@@ -172,7 +175,8 @@ add_executable(icp_implementation_test src/icp_implementation_test.cpp)
    ${EIGEN3_LIBS}
   ${GLOG_LIBRARIES}
   ${GTEST_LIBRARIES}
-gtest_main.a
+  gtest_main.a
+  ${CERES_LIBRARIES}
    -pthread
  )
 #############
