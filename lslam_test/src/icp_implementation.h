@@ -1,5 +1,6 @@
 #ifndef _ICP_IMPLEMENTATION_H
 #define   _ICP_IMPLEMENTATION_H
+
 #include <Eigen/Dense>
 #include <Eigen/Geometry>
 #include <Eigen/SVD>
