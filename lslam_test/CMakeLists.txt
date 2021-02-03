@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.0.2)
 project(lslam_test)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
- set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14")
+ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++1z")
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages

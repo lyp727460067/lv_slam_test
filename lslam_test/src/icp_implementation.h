@@ -7,76 +7,57 @@
 #include <Eigen/Dense>   
 #include <algorithm>
 #include  "glog/logging.h"
+#include <tuple>
+#include <Eigen/Geometry>
 class  IcpInterface
 {
-
+  public:
+  class  Option
+  {
+    int inter_num =0;
+    double err_tolerance  = 0.1;
+  }; 
+  virtual bool Match(const Option& option,Eigen::Matrix4f& init_pose,
+                      std::vector<Eigen::Vector3f> source_points,
+                      std::vector<Eigen::Vector3f> target_points) = 0;
 };
 
 class  OriginalIcp:public IcpInterface
 {
   public:
-   bool Match(Eigen::Matrix4d& init_pose, std::vector<Eigen::Vector3f> source,
-              std::vector<Eigen::Vector3f> target) {
+   bool Match(const Option& option,Eigen::Matrix4f& init_pose, std::vector<Eigen::Vector3f> source_points,
+              std::vector<Eigen::Vector3f> target_points) {
      bool reverse = false;
-     Eigen::MatrixXf sor = Eigen::MatrixXf::Zero(source.size(), 3);
-     Eigen::MatrixXf tar = Eigen::MatrixXf::Zero(target.size(), 3);
 
-     if (target.size() < source.size()) {
-       reverse = true;
-       source.swap(target);
-       tar.resize(source.size(), 3);
+     Eigen::MatrixXf source_temp = Eigen::MatrixXf::Zero(source_points.size(), 3);
+     Eigen::MatrixXf source = Eigen::MatrixXf::Zero(source_points.size(), 3);
+     Eigen::MatrixXf target = Eigen::MatrixXf::Zero(target_points.size(), 3);
+
+     for (int i = 0; i < source_points.size(); i++) {
+       source.row(i) = source_points[i];
      }
-     Eigen::Matrix3f R = Eigen::Matrix3f::Identity();
-     Eigen::Vector3f t{0, 0, 0};
-     std::vector<Eigen::Vector3f> source1 = source;
+     for (int i = 0; i <target_points.size(); i++) {
+       target.row(i) = target_points[i];
+     }
+     source_temp = source;
+     Eigen::Matrix4f  T =  Eigen::Matrix4f::Identity();
      for (int inter = 0; inter < 10; inter++) {
+       for(int i =0;i<source.rows();i++){
+          source_temp.row(i) =  (T.block<3,3>(0,0)*source_temp.row(i).transpose()+T.block<3,1>(0,3));
+       }
        LOG(INFO) << "start inter with  num " << inter;
-       for (int i = 0; i < source1.size(); i++) {
-         Eigen::Vector3f source_point = source1[i];
-         sor.block<1, 3>(i, 0) = source_point;
-         tar.block<1, 3>(i, 0) = target[i];
-
-         double tow_point_distance = std::numeric_limits<double>::max();
-         for (int j = 0; j < target.size(); j++) {
-           Eigen::Vector3f target_point = target[j];
-           double distance = (target_point - source_point).norm();
-           if (distance < tow_point_distance) {
-             tow_point_distance = distance;
-             tar.block<1, 3>(i, 0) = target[j];
-           }
-         }
-       }
-       auto tar_mean = GetMeanVector(tar);
-       GetMatrixOffset(tar, tar_mean);
-       auto sor_mean = GetMeanVector(sor);
-       GetMatrixOffset(sor, sor_mean);
-
-       Eigen::Matrix3f M = sor.transpose() * tar;
-       Eigen::JacobiSVD<Eigen::MatrixXf> svd(
-           M, Eigen::ComputeThinU | Eigen::ComputeThinV);
-       Eigen::Matrix3f U, V;
-       U = svd.matrixU();
-       V = svd.matrixV();
-       auto delata_r = V * U.transpose();
-       R =    delata_r *R;
-       auto diff_vector = tar_mean -  delata_r*sor_mean;   
-       t += diff_vector ;          
-       source1.clear();
-       for (auto& sor : source) { 
-         auto sor_temp = R * sor + t;
-         source1.push_back(sor_temp);
-       }
-
-       std::cout << t << std::endl;       
+     // std::cout<<source_temp<<target<<std::endl;
+       Eigen::MatrixX4f Tst =GetPairPointsTransform({source_temp, target});
+       T.block<3,3>(0,0) =  Tst.block<3,3>(0,0);
+       T.block<3,1>(0,3)  = Tst.block<3,1>(0,3);
+       
+     }
+     Eigen::MatrixX4f Tst = GetPairPointsTransform({source, source_temp});
+     T.block<3, 3>(0, 0) = Tst.block<3, 3>(0, 0);
+     T.block<3, 1>(0, 3) = Tst.block<3, 1>(0, 3);
+     init_pose = T;
+     return true; 
     }
-    init_pose.block<3,3>(0,0)  =  R.cast<double>();
-    init_pose.block<3,1>(0,3) = t.transpose().cast<double>();
-
-    return true;
-   }
-
-
-   
 
   private:
    Eigen::Vector3f  GetMeanVector(const Eigen::MatrixXf& m) {
@@ -84,17 +65,66 @@ class  OriginalIcp:public IcpInterface
      for (int i = 0; i < m.rows(); i++) {
        vector_sum += m.block<1, 3>(i, 0).transpose();
      }
-
      return vector_sum / m.rows();
    }
-   void GetMatrixOffset(Eigen::MatrixXf& m, Eigen::Vector3f offset) {
+   Eigen::MatrixXf MinusMatrixMean(Eigen::MatrixXf m, Eigen::Vector3f mean) {
+     Eigen::MatrixXf M(m.rows(),m.cols());
      for (int i = 0; i < m.rows(); i++) {
-       m.block<1, 3>(i, 0) -= offset;
+       M.row(i) =m.row(i)- mean.transpose();
      }
+     return M;
+   }
+   std::tuple<Eigen::MatrixXf, Eigen::MatrixXf> GetMinDistancMatchPonit(
+       const std::tuple<Eigen::MatrixXf, Eigen::MatrixXf>& points) {
+     Eigen::MatrixXf source_points;
+     Eigen::MatrixXf target_points;
+     std::tie(source_points, target_points) = points;   
+     Eigen::MatrixXf match_target_points(source_points.rows(),
+                                         source_points.cols());
+
+     for (int i = 0; i < source_points.rows(); i++) {
+       Eigen::Vector3f source_point = source_points.row(i);
+       double pair_points_distance = std::numeric_limits<double>::max();
+       for (int j = 0; j < target_points.rows(); j++) {
+         double distance = (source_points.row(i) - target_points.row(j)).norm();
+         if (distance <= pair_points_distance) {
+           pair_points_distance = distance;
+           match_target_points.row(i) = target_points.row(j);
+         }
+       }
+     }
+     return {source_points, match_target_points};
+   }
+   Eigen::Matrix4f GetPairPointsTransform(
+      const std::tuple<Eigen::MatrixXf, Eigen::MatrixXf>& points) {
+     Eigen::MatrixXf source_points;
+     Eigen::MatrixXf target_points;
+     std::tie( source_points, target_points)  = points;
+     Eigen::MatrixXf match_target_points(source_points.rows(),
+                                         source_points.cols());
+
+     auto tar_mean = GetMeanVector(target_points);
+     target_points = MinusMatrixMean(target_points, tar_mean);
+     auto sor_mean = GetMeanVector(source_points);
+     source_points = MinusMatrixMean(source_points, sor_mean);
+     std::tie(source_points, target_points) = GetMinDistancMatchPonit({source_points, target_points});
+
+     Eigen::Matrix3f M = source_points.transpose() * target_points;
+     Eigen::JacobiSVD<Eigen::MatrixXf> svd(
+         M, Eigen::ComputeThinU | Eigen::ComputeThinV);
+     Eigen::Matrix3f U, V;
+     U = svd.matrixU();
+     V = svd.matrixV();
+     auto R = V * U.transpose();
+     auto t = tar_mean - R * sor_mean;
+     Eigen::Matrix4f T = Eigen::Matrix4f::Identity();
+     T.block<3, 3>(0, 0) = R;
+     T.block<3, 1>(0, 3) = t;
+     return T;
    }
 };
 
-class  IpIcp :public IcpInterface
+class  OpitmizeIcp :public IcpInterface
 {
 
 
