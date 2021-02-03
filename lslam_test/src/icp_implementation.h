@@ -9,6 +9,7 @@
 #include  "glog/logging.h"
 #include <tuple>
 #include <Eigen/Geometry>
+#include "ceres/ceres.h"
 class  IcpInterface
 {
   public:
@@ -126,15 +127,23 @@ class  OriginalIcp:public IcpInterface
 
 class  OpitmizeIcp :public IcpInterface
 {
+  public:
+   OpitmizeIcp() {
 
+  }
 
+   bool Match(const Option& option, Eigen::Matrix4f& init_pose,
+              std::vector<Eigen::Vector3f> source_points,
+              std::vector<Eigen::Vector3f> target_points) {
+   
+                
+ }
+};
 
+class PLIcp : public IcpInterface 
+{
 
 
 };
-
-
-
-
 
 #endif
