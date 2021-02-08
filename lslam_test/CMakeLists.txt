@@ -15,11 +15,12 @@ find_package(catkin REQUIRED COMPONENTS
   laser_geometry
 )
 find_package(PCL REQUIRED QUIET)
+find_package(Ceres REQUIRED)
 set(CMAKE_MODULE_PATH  ${PROJECT_SOURCE_DIR}/../Cmake/)
 find_package(Eigen3 REQUIRED)
 find_package(Glog REQUIRED)
 find_package(GTest  REQUIRED)
-find_package(Ceres REQUIRED)
+
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
 
@@ -129,11 +130,11 @@ include_directories(
   ${Glog_INLUCDE_DIRS}
   ${CERES_INCLUDE_DIRS}
 )
+
 link_directories(
 	${PCL_LIBRARY_DIRS}
   ${GLOG_LIBRARIES}
   ${GTEST_LIBRARIES}
-
 )
 ## Declare a C++ library
 # add_library(${PROJECT_NAME}
@@ -165,10 +166,11 @@ add_executable(icp_implementation_test src/icp_implementation_test.cpp)
    ${catkin_LIBRARIES}
    ${PCL_LIBRARIES}
    ${EIGEN3_LIBS}
-  ${GLOG_LIBRARIES}
-  ${GTEST_LIBRARIES}
+   ${GLOG_LIBRARIES}
+   ${GTEST_LIBRARIES}
    -pthread
  )
+
  target_link_libraries(icp_implementation_test 
    ${catkin_LIBRARIES}
    ${PCL_LIBRARIES}
