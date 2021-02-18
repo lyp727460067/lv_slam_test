@@ -47,7 +47,7 @@ class PointLineCostFunction {
     Eigen::Matrix<T,3,1> diff_pp1 =  (p_a - near_p1_.template cast<T>());
     T err  = normal_p1p2.dot(diff_pp1);
 //    std::cout<<err<<std::endl;
-    residuals[0]  =  err;
+    residuals[0]  =  err*T(10.0);
     return true;
   }
   static ceres::CostFunction* Creat(const Eigen::Vector3f p,
@@ -119,7 +119,7 @@ class PlIcp : public IcpInterface {
     }
     problem.SetParameterization(q.coeffs().data(), quaternion_local);
     ceres::Solver::Options options;
-    options.minimizer_progress_to_stdout =true;
+    options.minimizer_progress_to_stdout =false;
     options.max_num_iterations = 20;
     options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
     ceres::Solver::Summary summary;
@@ -130,9 +130,15 @@ class PlIcp : public IcpInterface {
     pose_estimate.block<3, 3>(0, 0) = Mat;//Eigen::AngleAxisf(yaw,Eigen::Vector3f(0,0,1)).matrix();
     pose_estimate.block<3, 1>(0, 3) = t.cast<float>();
   }
-
  private:
   using PointType = pcl::PointXYZ;
+Eigen::Vector3f PclPointToEigenVector(const PointType& point) {
+    Eigen::Vector3f vector3f;
+    vector3f.x() = point.x;
+    vector3f.y() = point.y;
+    vector3f.z() = point.z;
+    return vector3f;
+  }
   void BuildOptimazationProblem(){};
   pcl::PointCloud<PointType>::Ptr VectorPointToPclPointCloud(
       const std::vector<Eigen::Vector3f> points) {
@@ -147,13 +153,7 @@ class PlIcp : public IcpInterface {
     }
     return point_cloude;
   }
-  Eigen::Vector3f PclPointToEigenVector(const PointType& point) {
-    Eigen::Vector3f vector3f;
-    vector3f.x() = point.x;
-    vector3f.y() = point.y;
-    vector3f.z() = point.z;
-    return vector3f;
-  }
+  
 };
 
 #endif

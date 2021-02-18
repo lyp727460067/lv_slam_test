@@ -25,7 +25,11 @@
 #include <vector>
 #include <pcl/features/normal_3d.h>
 #include "glog/logging.h"
+#include "pl_icp.h"
+#include "nav_msgs/OccupancyGrid.h"
+#include "grid_map.h"
 namespace{
+OccupancyGridMap  grid_map;  
 using PointType = pcl::PointXYZ;
 pcl::PointCloud<PointType>::Ptr map_point(
     new pcl::PointCloud<PointType>());
@@ -172,6 +176,37 @@ class NdtMatcher : public MatcherInterface {
  private:
   pcl::NormalDistributionsTransform<PointType, PointType> ndt;
 };
+
+class PLICPMatcher : public MatcherInterface {
+ public:
+  PLICPMatcher() {
+  }
+  bool ScanMatch(Eigen::Matrix4f init_pose, pcl::PointCloud<PointType>::Ptr Source,
+             pcl::PointCloud<PointType>::Ptr Target, const Option option,
+             double score, Eigen::Matrix4f& expect_pose) {
+               
+
+  std::vector<Eigen::Vector3f> target_points;
+  std::vector<Eigen::Vector3f> source;
+  for(int i = 0;i<Source->size();i++){
+    Eigen::Vector3f point{Source->points[i].x,Source->points[i].y,Source->points[i].z};
+    source.push_back(point);
+  }
+  for(int i = 0;i<Target->size();i++){
+    Eigen::Vector3f point{Target->points[i].x,Target->points[i].y,Target->points[i].z};
+    target_points.push_back(point);
+  }
+  pl_icp_.Match(IcpInterface::Option{}, init_pose,source,target_points, expect_pose);
+  return true;
+  }
+  
+ private:
+ PlIcp pl_icp_;
+
+};
+
+
+
 tf::TransformBroadcaster* tf_broadcaster;
 void PubTf(Eigen::Matrix4f pose) {
   geometry_msgs::TransformStamped tf_trans;
@@ -195,7 +230,15 @@ void NdtProgress(void) {
   pcl::PointCloud<PointType>::Ptr pre_cloud(
       new pcl::PointCloud<PointType>);
   uint64_t delta_time;
-
+  
+  auto ToEigenVector =   [](pcl::PointCloud<PointType>::Ptr pcl_points) -> std::vector<Eigen::Vector3f> {
+    std::vector<Eigen::Vector3f> eige_point;
+    for(int i =0;i<pcl_points->size();i++){
+      Eigen::Vector3f point(pcl_points->points[i].x,pcl_points->points[i].y,pcl_points->points[i].z);
+      eige_point.push_back(point);
+    }
+    return eige_point;
+  } ;
   while (ros::ok) {
     std::unique_lock<std::mutex> lock(new_point_mutex);
     condition.wait(lock, []() { return new_cloud; });
@@ -223,7 +266,7 @@ void NdtProgress(void) {
       ROS_INFO("map_point.size%d", map_point->size());
       continue;
     }
-    std::unique_ptr<MatcherInterface> matcher = std::unique_ptr<IcpMatcher>(new IcpMatcher());
+    std::unique_ptr<MatcherInterface> matcher = std::unique_ptr<PLICPMatcher >(new PLICPMatcher());
     double score = 0.0;
     if (matcher->ScanMatch(delta_pose, filter_cloud, pre_cloud,
                        MatcherInterface::Option(), score, delta_pose)) {
@@ -231,12 +274,14 @@ void NdtProgress(void) {
       if (score < 0.1) {
         pre_cloud->clear();
         *pre_cloud = *filter_cloud;
-        std::cout << "curr_pos" << delta_pose << std::endl;
-        Eigen::Matrix4f curr_pos = last_pose * delta_pose;
+       // std::cout << "curr_pos" << delta_pose << std::endl;
+        Eigen::Matrix4f curr_pos =last_pose*  delta_pose;
         last_pose = curr_pos;
-        std::cout << "last_pose" << last_pose << std::endl;
+      //  std::cout << "last_pose" << last_pose << std::endl;
         map_point->clear();
+        pose_expet = curr_pos;
         pcl::transformPointCloud(*curr_point, *map_point, curr_pos);
+        grid_map.Insert(ToEigenVector(map_point),pose_expet);
         map_finish = true;
         PubTf(curr_pos);
       }
@@ -312,14 +357,17 @@ int main(int argc, char** argv) {
   //     "/kitti/velo/pointcloud", 1, &PointCloudCallBack);
   ros::Publisher map_pub =
       nh.advertise<sensor_msgs::PointCloud2>("map_cloud", 2);
-
+  ros::Publisher occmap_pub = nh.advertise<nav_msgs::OccupancyGrid>("map", 2);
   std::thread ndt_thread(&NdtProgress);
   ros::Rate rate(10);
   int stamp = 0;
   std::cout<<"start main"<<std::endl; 
+
+
   while (ros::ok()) {
     if (map_finish) {
       sensor_msgs::PointCloud2 points2;     
+      occmap_pub.publish(grid_map.GetOccuMap());
       map_finish = false;
       pcl::PointCloud<PointType>::Ptr cloudOut(new pcl::PointCloud<PointType>());
       *cloudOut+=*map_point;

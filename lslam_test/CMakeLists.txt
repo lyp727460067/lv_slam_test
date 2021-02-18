@@ -16,6 +16,10 @@ find_package(catkin REQUIRED COMPONENTS
 )
 find_package(PCL REQUIRED QUIET)
 find_package(Ceres REQUIRED)
+
+set(OpenCV_DIR /home/lyp/third_part/opencv/opencv/build)
+#find_package(OpenCV)
+find_package(OpenCV  REQUIRED)
 set(CMAKE_MODULE_PATH  ${PROJECT_SOURCE_DIR}/../Cmake/)
 find_package(Eigen3 REQUIRED)
 find_package(Glog REQUIRED)
@@ -127,6 +131,7 @@ include_directories(
 # include
 	${PCL_INCLUDE_DIRS}
   ${catkin_INCLUDE_DIRS}
+${OpenCV_INCLUDE_DIR}
   ${Glog_INLUCDE_DIRS}
   ${CERES_INCLUDE_DIRS}
 )
@@ -168,6 +173,8 @@ add_executable(icp_implementation_test src/icp_implementation_test.cpp)
    ${EIGEN3_LIBS}
    ${GLOG_LIBRARIES}
    ${GTEST_LIBRARIES}
+     ${CERES_LIBRARIES}
+		${OpenCV_LIBS}
    -pthread
  )
 
@@ -177,6 +184,7 @@ add_executable(icp_implementation_test src/icp_implementation_test.cpp)
    ${EIGEN3_LIBS}
   ${GLOG_LIBRARIES}
   ${GTEST_LIBRARIES}
+		${OpenCV_LIBS}
   gtest_main.a
   ${CERES_LIBRARIES}
    -pthread
