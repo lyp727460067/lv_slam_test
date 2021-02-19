@@ -9,7 +9,12 @@
 class  StereoTrack
 {
   public:
+   
    bool Track(cv::Mat left_cam, cv::Mat right_cam) {
+     if(states==0){
+       Init(left_cam,right_cam);
+
+     }
 
    }
 
@@ -123,12 +128,24 @@ class  StereoTrack
     bool ret = cv::solvePnPRansac(point3ds, points_curr, K, dist_coeffs, rvec,
                                   tvec, false, 30, 6.0, 0.99, inliers,
                                   cv::SOLVEPNP_ITERATIVE);
-    cv::Mat dr;
-    if(ret){
-      cv::Rodrigues(rvec,dr);
+    cv::Mat R;
+    if (ret) {
+      cv::Rodrigues(rvec, R);
+      Eigen::Vector3d dt;
+      Eigen::Matrix3d dr;
       
+      for (int i = 0; i < 3; i++) {
+        for (int j = 0; j < 3; j++) {
+          dr(i, j) = R.at<double>(i, j);
+        }
+        dt[i] = rvec.at<double>(i);
+      }
+      dt = -dr.transpose() * dt;
+      pose_.block<3,1>(0,3) =  k_pose_.block<3,1>(0,3) + k_pose_.block<3,3>(0,0)*dt;
+      pose_.block<3,3>(0,0) = k_pose_.block<3,3>(0,0)*dr.transpose();
     }
-    
+    int inlier_count = std::count(inliers.begin(), inliers.end(), 1);
+    return inlier_count > min_feat_cnt;
    }
    const cv::Mat K =
        (cv::Mat_<double>(3, 3) << 385.0450439453125, 0.0, 323.1961975097656,
@@ -139,13 +156,14 @@ class  StereoTrack
    const int  min_feat_dist = 30;
    const int min_disparity = 2;
    const int max_epipolar = 5;
+   const  int min_feat_cnt = 50;
    const double base_line =  0.1;
    std::vector<cv::Point2f> track_features;
    std::vector<cv::Point3f> track_points;
    cv::Mat key_frame;
    Eigen::Matrix4d pose_ = Eigen::Matrix4d::Identity();
    Eigen::Matrix4d k_pose_;
-
+   int states = 0;
   
       
 };
