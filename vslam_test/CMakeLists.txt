@@ -12,6 +12,7 @@ find_package(catkin REQUIRED COMPONENTS
   rosbag
   tf
   laser_geometry
+  cv_bridge
 )
 find_package(PCL REQUIRED QUIET)
 find_package(Ceres REQUIRED)

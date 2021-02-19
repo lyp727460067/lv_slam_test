@@ -1,25 +1,38 @@
 #ifndef _STEREO_TEST_H
 #define _STEREO_TEST_H
 #include "opencv2/core.hpp"
+
 #include "opencv2/features2d.hpp"
 #include "opencv2/opencv.hpp"
 #include <vector>
 #include "Eigen/Eigen"
-
+#include <iostream>
+#include "opencv2/calib3d.hpp"
 class  StereoTrack
 {
   public:
    
-   bool Track(cv::Mat left_cam, cv::Mat right_cam) {
+   Eigen::Matrix4d Track(const cv::Mat& left_cam, const cv::Mat& right_cam) {
      if(states==0){
+
        Init(left_cam,right_cam);
-
+       states = 1;
+     }else if(states ==1){
+       if(!TrackKeyFrame(key_frame,left_cam)){
+       }else{
+         Init(left_cam,right_cam);
+       }
      }
-
+    return pose_; 
    }
-
+   std::vector<cv::Point3f> GetTrackPoints(){
+     return track_points;
+   }
+   cv::Mat GetVisuImag(){
+     return feats_img;
+   }
    private:
-    void Init(cv::Mat left_cam, cv::Mat right_cam) {
+    void Init(const cv::Mat& left_cam, const cv::Mat &right_cam) {
       std::vector<cv::KeyPoint> left_keypoints;
       std::vector<cv::Point2f> left_feats, right_feats;
 
@@ -30,8 +43,9 @@ class  StereoTrack
       detector->detect(left_cam, left_keypoints);
       std::sort(left_keypoints.begin(), left_keypoints.end(),
                 [](const cv::KeyPoint& p1, const cv::KeyPoint& p2) {
-                  return p1.response() > p2.response();
+                  return p1.response > p2.response;
                 });
+
       for (cv::KeyPoint keypoint : left_keypoints) {
         if (left_feats.size() < max_feats_size &&
             mask.at<uint8_t>(keypoint.pt.y, keypoint.pt.x)) {
@@ -45,11 +59,13 @@ class  StereoTrack
       std::vector<float> err;
       cv::calcOpticalFlowPyrLK(left_cam, right_cam, left_feats, right_feats,
                                status, err);
+      std::cout<<"calcOpticalFlowPyrLK"<<std::endl;                       
       double fx = K.at<double>(0, 0);
       double fy = K.at<double>(1, 1);
       double cx = K.at<double>(0, 2);
       double cy = K.at<double>(1, 2);
-      int count = std::cout(status.begin(), status.end(), 1);
+
+      int count = std::count(status.begin(), status.end(), 1);
       track_points.resize(count);
       track_features.resize(count);
       std::vector<cv::Point2f> feats_tracked(count);
@@ -58,49 +74,74 @@ class  StereoTrack
         if (status[i]) {
           cv::Point3f point3f;
           cv::Point2f dp = left_feats[i] - right_feats[i];
-          if (fabs(dp.x) > min_disparity && fabs(dp.y) < max_epipolar) {
+         // if (fabs(dp.x) > min_disparity && fabs(dp.y) < max_epipolar) {
             point3f.z = fx * base_line / dp.x;
+            std::cout<<point3f.z<<std::endl;
             point3f.x = (left_feats[i].x - cx) / fx * point3f.z;
             point3f.y = (left_feats[i].y - cy) / fy * point3f.z;
-
-          } else {
-            point3f.z = 0;
-            point3f.x = 0;
-            point3f.y = 0;
-          }
-          track_points[i] = point3f;
-          track_features[i] = left_feats[i];
+            
+         // } else {
+         //   point3f.z = 0;
+          //  point3f.x = 0;
+          //  point3f.y = 0;
+         // }
+          track_points[j] = point3f;
+          track_features[j] = left_feats[i];
           feats_tracked[j] = right_feats[i];
           j++;
         }
       }
+      std::cout<<" RemoveOutliner"<<std::endl;
       RemoveOutliner(left_feats, right_feats, track_points);
       left_cam.copyTo(key_frame);
+
       k_pose_ = pose_;
+      std::cout<<" RemoveOutliner  done"<<std::endl;
+       
+    }
+    void Visualize(const cv::Mat& img,
+                   const std::vector<cv::Point2f>& cur_feats,
+                   std::vector<cv::Point2f> pre_feats, std::vector<uint8_t>& status) {
+      cv::Mat img_feat;
+      cv::cvtColor(img, img_feat,  cv::COLOR_GRAY2RGB);
+      std::cout<<"cur_feats.size()"<<cur_feats.size()<<std::endl;
+        std::cout<<"status.size()"<<status.size()<<std::endl;
+      for(int i =0;i<cur_feats.size();i++){
+        if(status[i]){
+          std::cout<<"cvtColor"<<std::endl;
+          cv::line(img_feat,cur_feats[i],pre_feats[i],cv::Scalar(0,0,255));
+          std::cout<<"line"<<std::endl;
+          cv::circle(img_feat,pre_feats[i],1,cv::Scalar(255,0,0));
+          cv::circle(img_feat,cur_feats[i],1,cv::Scalar(0,255,0));
+        }
+        std::cout<<"i="<<i<<std::endl;
+      }
+      std::cout<<"Visualize"<<std::endl;
+      img_feat.copyTo(feats_img);
     }
 
-   void RemoveOutliner(std::vector<cv::Point2f>& pre,
-                       std::vector<cv::Point2f>& curr,
-                       std::vector<cv::Point3f>& points) {
-     std::vector<uint8_t> status;
-     cv::Mat F =
-         cv::findFundamentalMat(pre, curr, CV_FM_RANSAC, 1.0, 0.99, status);
-     int j = 0;
-     for (int i = 0; i < status.size(); i++) {
-       if (status[i] && (i != j)) {
-         pre[j] = pre[i];
-         curr[j] = curr[i];
-         points[j] = points[i];
-         j++;
-       }
-     }
-     pre.resize(j);
-     curr.resize(j);
-     points.resize(j);
+    void RemoveOutliner(std::vector<cv::Point2f>& pre,
+                        std::vector<cv::Point2f>& curr,
+                        std::vector<cv::Point3f>& points) {
+      std::vector<uint8_t> status;
+      cv::Mat F =
+          cv::findFundamentalMat(pre, curr, cv::FM_RANSAC, 1.0, 0.99, status);
+      int j = 0;
+      for (int i = 0; i < status.size(); i++) {
+        if (status[i] && (i != j)) {
+          pre[j] = pre[i];
+          curr[j] = curr[i];
+          points[j] = points[i];
+          j++;
+        }
+      }
+      pre.resize(j);
+      curr.resize(j);
+      points.resize(j);
    }
-   bool TrackKeyFrame(cv::Mat key_img,cv::Mat curr_img)
+   bool TrackKeyFrame(const cv::Mat &key_img,const cv::Mat &curr_img)
    {
-    std::vector<uint8_t> status;
+      std::vector<uint8_t> status;
       std::vector<float> err;
       std::vector<cv::Point2f> feats_curr;
       cv::calcOpticalFlowPyrLK(key_img, curr_img, track_features, feats_curr,
@@ -125,10 +166,16 @@ class  StereoTrack
 
     cv::Mat rvec,tvec;
     std::vector<uint8_t>  inliers;
+    std::cout<<"point3ds.size()"<<point3ds.size()<<std::endl;
+    std::cout<<"points_curr.size()"<<points_curr.size()<<std::endl;
+   std::cout<<"track_features.size()"<<track_features.size()<<std::endl;
     bool ret = cv::solvePnPRansac(point3ds, points_curr, K, dist_coeffs, rvec,
                                   tvec, false, 30, 6.0, 0.99, inliers,
                                   cv::SOLVEPNP_ITERATIVE);
     cv::Mat R;
+
+    Visualize(curr_img,points,points_curr,inliers); 
+    std::cout<<"Visualize"<<std::endl;  
     if (ret) {
       cv::Rodrigues(rvec, R);
       Eigen::Vector3d dt;
@@ -143,7 +190,12 @@ class  StereoTrack
       dt = -dr.transpose() * dt;
       pose_.block<3,1>(0,3) =  k_pose_.block<3,1>(0,3) + k_pose_.block<3,3>(0,0)*dt;
       pose_.block<3,3>(0,0) = k_pose_.block<3,3>(0,0)*dr.transpose();
+
+
     }
+
+
+
     int inlier_count = std::count(inliers.begin(), inliers.end(), 1);
     return inlier_count > min_feat_cnt;
    }
@@ -157,14 +209,15 @@ class  StereoTrack
    const int min_disparity = 2;
    const int max_epipolar = 5;
    const  int min_feat_cnt = 50;
-   const double base_line =  0.1;
+   const double base_line =  0.05;
    std::vector<cv::Point2f> track_features;
    std::vector<cv::Point3f> track_points;
    cv::Mat key_frame;
    Eigen::Matrix4d pose_ = Eigen::Matrix4d::Identity();
-   Eigen::Matrix4d k_pose_;
+   Eigen::Matrix4d k_pose_= Eigen::Matrix4d::Identity();
    int states = 0;
-  
+   cv::Mat feats_img;
+
       
 };
 

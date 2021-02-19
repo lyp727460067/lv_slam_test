@@ -13,20 +13,93 @@
 #include "sensor_msgs/CompressedImage.h"
 #include "tf/transform_broadcaster.h"
 #include "tf/transform_listener.h"
-void stereo_tracker(const std::pair<cv::Mat,cv::Mat>& stereo_imag)
+#include "stereo_test.h"
+#include <geometry_msgs/Point32.h>
+#include "sensor_msgs/PointCloud.h"
+#include "sensor_msgs/PointCloud2.h"
+#include "sensor_msgs/point_cloud_conversion.h"
+#include "sensor_msgs/Image.h"
+#include <cv_bridge/cv_bridge.h>
+StereoTrack StereoTrack_;
+
+
+
+
+tf::TransformBroadcaster* tf_broadcaster;
+ros::Publisher point_cloud_pub;
+ros::Publisher feat_img_pub;
+void PubPointCloud2(const std::vector<cv::Point3f> &points)
 {
+
+  sensor_msgs::PointCloud point_cloud;
+  sensor_msgs::PointCloud2 point_cloud2;
+  for(auto point:points){
+    geometry_msgs::Point32 geo_point ;
+    geo_point.x  = point.x;
+    geo_point.y  = point.y;
+    geo_point.z  = point.z;
+    point_cloud.points.push_back(geo_point);
+  }
+  point_cloud.header.frame_id = "base_link";
+  point_cloud.header.stamp =  ros::Time::now();
+  sensor_msgs::convertPointCloudToPointCloud2(point_cloud,point_cloud2);
+  point_cloud_pub.publish(point_cloud2);
+
+}
+void PubTf(const Eigen::Matrix4d& pose) {
+  geometry_msgs::TransformStamped tf_trans;
+  Eigen::Matrix3d ratation  = pose.block(0,0,3,3);
+  Eigen::Quaterniond q(ratation);
+  tf_trans.header.stamp = ros::Time::now();
+  tf_trans.header.frame_id = "map";
+  tf_trans.child_frame_id = "base_link";
+  tf_trans.transform.translation.x = pose(0,3);
+  tf_trans.transform.translation.y = pose(1,3);
+  tf_trans.transform.translation.z = pose(2,3);
+  tf_trans.transform.rotation.x = q.x();
+  tf_trans.transform.rotation.y = q.y();
+  tf_trans.transform.rotation.z = q.z();
+  tf_trans.transform.rotation.w = q.w();
+  tf_broadcaster->sendTransform(tf_trans);
 
 
 }
+void PubFeatur(const cv::Mat&featureImag )
+{
+  sensor_msgs::Image img;
+  std_msgs::Header header;
+  header.frame_id =  "base_link" ;
+  header.stamp  =  ros::Time::now();
+//  cv_bridge::CvImage()
+  sensor_msgs::ImagePtr msg= cv_bridge::CvImage(header,"bgr8",featureImag).toImageMsg();
+  feat_img_pub.publish(msg);
 
+}
+void stereo_tracker(const std::pair<cv::Mat, cv::Mat>& stereo_imag) {
+   std::cout<<"Track"<<std::endl;      
+  Eigen::Matrix4d pose =
+      StereoTrack_.Track(stereo_imag.first, stereo_imag.second);
+  std::cout<<pose<<std::endl;
+
+  PubTf(pose);
+  std::cout<<"PubTf"<<std::endl;
+  std::vector<cv::Point3f> points  =  StereoTrack_.GetTrackPoints();
+  PubPointCloud2(points);
+    std::cout<<"PubPointCloud2"<<std::endl;
+  PubFeatur(StereoTrack_.GetVisuImag());
+  std::cout<<"PubFeatur"<<std::endl;
+}
 
 int main(int argc,char** argv)
 {
   ros::init(argc,argv,"stero_test");
-  tf::TransformBroadcaster* tf_broadcaster = new tf::TransformBroadcaster;
+   tf_broadcaster = new tf::TransformBroadcaster;
   std::string left_camera_topic;
   std::string right_camera_topic;
   ros::NodeHandle private_node("~");
+  ros::NodeHandle nh;
+  point_cloud_pub  = nh.advertise<sensor_msgs::PointCloud2>("track_point",2);
+  feat_img_pub = nh.advertise<sensor_msgs::Image>("featr_img",2);
   private_node.param<std::string>("left_camera_topic",left_camera_topic,"/left_camera");
   private_node.param<std::string>("right_camera_topic",right_camera_topic,"/right_camera");
    
@@ -38,7 +111,7 @@ int main(int argc,char** argv)
   }
 
 
-  ros::NodeHandle nh;
+
   std::string inputbag_name(argv[1]);
 
   std::thread thread_bag([&]() {
@@ -53,26 +126,31 @@ int main(int argc,char** argv)
       rosbag::MessageInstance msg = *view_iterator;
 
       if (msg.isType<sensor_msgs::CompressedImage>()) {
+         
         if (msg.getTopic() == left_camera_topic) {
+          std::cout<<"read left_camera_topic"<<std::endl;     
           sensor_msgs::CompressedImagePtr msg_ptr =
               msg.instantiate<sensor_msgs::CompressedImage>();\
-          cv::Mat matrix = cv::imdecode(cv::Mat(msg_ptr->data), 1);
+          cv::Mat matrix = cv::imdecode(cv::Mat(msg_ptr->data), 0);
           matrix.copyTo(stereo_imag.first);
          // cv::imshow("left_camera", matrix);
          // cv::waitKey(1);
         }
         if (msg.getTopic() == right_camera_topic) {
+           std::cout<<"read right_camera_topic"<<std::endl;     
           sensor_msgs::CompressedImagePtr msg_ptr =
               msg.instantiate<sensor_msgs::CompressedImage>();
-          cv::Mat matrix = cv::imdecode(cv::Mat(msg_ptr->data), 1);
+          cv::Mat matrix = cv::imdecode(cv::Mat(msg_ptr->data),0);
           matrix.copyTo(stereo_imag.second);
          // cv::imshow("right_camera", matrix);
          // cv::waitKey(1);
         }
       }
-      if(!stereo_imag.first.empty()&& !stereo_imag.second.empty()){
+      if(!stereo_imag.first.empty() && !stereo_imag.second.empty()){
+
         stereo_tracker(stereo_imag);
         stereo_imag =  std::make_pair<cv::Mat,cv::Mat>(cv::Mat(),cv::Mat());
+        std::cout<<"stereo_tracker"<<std::endl;    
       }
 
     }
