@@ -34,12 +34,13 @@ class  StereoTrack
     void Init(const cv::Mat& left_cam, const cv::Mat &right_cam) {
       std::vector<cv::KeyPoint> left_keypoints;
       std::vector<cv::Point2f> left_feats, right_feats;
-
       int thresh = 10;
       cv::Mat mask = cv::Mat(left_cam.size(), CV_8UC1, cv::Scalar(100));
-
-      cv::goodFeaturesToTrack(left_cam, left_feats, 1000, 0.01, 7, cv::Mat(), 7, false, 0.04);
-
+      cv::TermCriteria criteria = cv::TermCriteria(
+          (cv::TermCriteria::MAX_ITER) + (cv::TermCriteria::EPS), 1000 , 0.3);
+       cv::goodFeaturesToTrack(left_cam, left_feats, 1000, 0.01, 7, cv::Mat(),
+       7, false, 0.04);
+      //cv::cornerSubPix(left_cam, left_feats, cv::Size(5, 5), cv::Size(-1, -1),criteria);
 
       // cv::Ptr<cv::FastFeatureDetector> detector =
       //     cv::FastFeatureDetector::create(thresh);
@@ -64,7 +65,7 @@ class  StereoTrack
       cv::waitKey(10);
       std::vector<uint8_t> status;
       std::vector<float> err;
-      cv::TermCriteria criteria = cv::TermCriteria((cv::TermCriteria::COUNT) + (cv::TermCriteria::EPS), 10, 0.03);
+     
       cv::calcOpticalFlowPyrLK(left_cam, right_cam, left_feats, right_feats,
                                status, err, cv::Size(15,15), 2);
       std::cout<<"calcOpticalFlowPyrLK"<<std::endl;                       
