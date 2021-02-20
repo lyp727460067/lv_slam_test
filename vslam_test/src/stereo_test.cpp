@@ -134,21 +134,22 @@ int main(int argc,char** argv)
               msg.instantiate<sensor_msgs::CompressedImage>();
           cv::Mat matrix = cv::imdecode(cv::Mat(msg_ptr->data), 0);
           matrix.copyTo(stereo_imag.first);
-          std::cout<<"left_camera_topic"<<std::endl;
+        //  std::cout<<"left_camera_topic"<<std::endl;
          // cv::imshow("left_camera", matrix);
          // cv::waitKey(1);
         }
         if (msg.getTopic() == right_camera_topic) {
-         std::cout<<"right_camera_topic"<<std::endl;
+      //   std::cout<<"right_camera_topic"<<std::endl;
           sensor_msgs::CompressedImagePtr msg_ptr =
               msg.instantiate<sensor_msgs::CompressedImage>();
           cv::Mat matrix = cv::imdecode(cv::Mat(msg_ptr->data),0);
           matrix.copyTo(stereo_imag.second);
-         // cv::imshow("right_camera", matrix);
-         // cv::waitKey(1);
+       //  cv::imshow("right_camera", matrix);
+       //   cv::waitKey(1);
         }
       }
       if(!stereo_imag.first.empty() && !stereo_imag.second.empty()){
+        //std::this_thread::sleep_for(std::chrono::milliseconds(100));
         std::cout<<"stereo_tracker"<<std::endl;
         stereo_tracker(stereo_imag);
         stereo_imag =  std::make_pair<cv::Mat,cv::Mat>(cv::Mat(),cv::Mat());

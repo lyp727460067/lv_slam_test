@@ -37,22 +37,26 @@ class  StereoTrack
 
       int thresh = 10;
       cv::Mat mask = cv::Mat(left_cam.size(), CV_8UC1, cv::Scalar(100));
-      cv::Ptr<cv::FastFeatureDetector> detector =
-          cv::FastFeatureDetector::create(thresh);
-      detector->detect(left_cam, left_keypoints);
-      std::sort(left_keypoints.begin(), left_keypoints.end(),
-                [](const cv::KeyPoint& p1, const cv::KeyPoint& p2) {
-                  return p1.response > p2.response;
-                });
 
-      for (cv::KeyPoint keypoint : left_keypoints) {
-        if (left_feats.size() < max_feats_size &&
-            mask.at<uint8_t>(keypoint.pt.y, keypoint.pt.x)) {
-          left_feats.push_back(keypoint.pt);
-          cv::circle(mask, keypoint.pt, min_feat_dist, cv::Scalar(0),
-                     cv::FILLED);
-        }
-      }
+      cv::goodFeaturesToTrack(left_cam, left_feats, 1000, 0.01, 7, cv::Mat(), 7, false, 0.04);
+
+
+      // cv::Ptr<cv::FastFeatureDetector> detector =
+      //     cv::FastFeatureDetector::create(thresh);
+      // detector->detect(left_cam, left_keypoints);
+      // std::sort(left_keypoints.begin(), left_keypoints.end(),
+      //           [](const cv::KeyPoint& p1, const cv::KeyPoint& p2) {
+      //             return p1.response > p2.response;
+      //           });
+
+      // for (cv::KeyPoint keypoint : left_keypoints) {
+      //   if (left_feats.size() < max_feats_size &&
+      //       mask.at<uint8_t>(keypoint.pt.y, keypoint.pt.x)) {
+      //     left_feats.push_back(keypoint.pt);
+      //     cv::circle(mask, keypoint.pt, min_feat_dist, cv::Scalar(0),
+      //                cv::FILLED);
+      //   }
+      // }
       cv::Mat ViewMat;
       left_cam.copyTo(ViewMat);
       ViewMat+=mask;
@@ -60,8 +64,9 @@ class  StereoTrack
       cv::waitKey(10);
       std::vector<uint8_t> status;
       std::vector<float> err;
+      cv::TermCriteria criteria = cv::TermCriteria((cv::TermCriteria::COUNT) + (cv::TermCriteria::EPS), 10, 0.03);
       cv::calcOpticalFlowPyrLK(left_cam, right_cam, left_feats, right_feats,
-                               status, err);
+                               status, err, cv::Size(15,15), 2);
       std::cout<<"calcOpticalFlowPyrLK"<<std::endl;                       
       double fx = K.at<double>(0, 0);
       double fy = K.at<double>(1, 1);
@@ -77,6 +82,7 @@ class  StereoTrack
         if (status[i]) {
           cv::Point3f point3f;
           cv::Point2f dp = left_feats[i] - right_feats[i];
+          std::cout<<"dp="<<dp<<std::endl;
           if (dp.x > min_disparity && fabs(dp.y) < max_epipolar) {
             point3f.z = fx * base_line / dp.x;
             std::cout<<point3f.z<<std::endl;
@@ -209,7 +215,7 @@ class  StereoTrack
    const  cv::Mat dist_coeffs = cv::Mat::zeros(5, 1, CV_64FC1);
    const int max_feats_size = 1000;
    const int  min_feat_dist =10;
-   const int min_disparity = 1;
+   const int min_disparity = 5;
    const int max_epipolar = 2;
    const  int min_feat_cnt = 50;
    const double base_line =  0.05;
