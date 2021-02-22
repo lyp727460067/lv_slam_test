@@ -1,7 +1,7 @@
 #ifndef _STEREO_TEST_H
 #define _STEREO_TEST_H
 #include "opencv2/core.hpp"
-
+#include "random"
 #include "opencv2/features2d.hpp"
 #include "opencv2/opencv.hpp"
 #include <vector>
@@ -19,29 +19,79 @@ class  StereoTrack
        states = 1;
      }else if(states ==1){
        if(!TrackKeyFrame(key_frame,left_cam)){
+          cv::waitKey(0);
           Init(left_cam,right_cam);
        }
      }
     return pose_; 
    }
    std::vector<cv::Point3f> GetTrackPoints(){
-     return track_3dpoints;
+     Eigen::Matrix4d TrackPoseToPose  =  k_pose_.inverse() *pose_;
+     std::vector<cv::Point3f> return_points;
+     for(auto point:track_3dpoints){
+        Eigen::Vector4d poin =  TrackPoseToPose.inverse()*Eigen::Vector4d(point.x,point.y,point.z,1);
+        return_points.push_back({poin[0],poin[1],poin[2]});
+     }
+    return return_points;
    }
    cv::Mat GetVisuImag(){
      return feats_img;
    }
    private:
+    void MatchesDescriber(const cv::Mat& left_cam, const cv::Mat& right_cam) {
+      std::vector<cv::KeyPoint> keypoints1, keypoints2;
+      cv::Mat descriptors1, descriptors2;
+      cv::Ptr<cv::FeatureDetector> detector = cv::ORB::create();
+      cv::Ptr<cv::DescriptorExtractor> desctriptor_ex = cv::ORB::create();
+      cv::Ptr<cv::DescriptorMatcher> matcher = cv::DescriptorMatcher::create();
+
+      detector->detect(left_cam, keypoints1);
+      detector->detect(right_cam, keypoints2);
+      desctriptor_ex->compute(left_cam, keypoints1, descriptors1);
+      desctriptor_ex->compute(right_cam, keypoints2, descriptors2);
+
+      std::vector<cv::DMatch> matches;
+      matcher->match(descriptors1, descriptors2, matches);
+
+      double min_dist = 10000, max_dist = -1;
+
+      for (int i = 0; i < descriptors1.rows; i++) {
+        double dist = matches[i].distance;
+        if (dist < min_dist) {
+          dist = min_dist;
+        }
+        if (dist > max_dist) {
+          dist = max_dist;
+        }
+      }
+
+      std::vector<cv::DMatch> good_matches;
+      for (int i = 0; i < descriptors1.rows) {
+        if (matches[i].distance <= max(2 * min_dist, 30.0)) {
+          good_matches.push_back(matches[i]);
+        }
+      }
+    
+
+    for(int i = 0;i<good_matches.size();i++) {
+        
+
+    }
+
+
+
+    }
     void Init(const cv::Mat& left_cam, const cv::Mat &right_cam) {
       std::vector<cv::KeyPoint> left_keypoints;
       std::vector<cv::Point2f> left_feats, right_feats;
       int thresh = 10;
       cv::Mat mask = cv::Mat(left_cam.size(), CV_8UC1, cv::Scalar(100));
       cv::TermCriteria criteria = cv::TermCriteria(
-          (cv::TermCriteria::MAX_ITER) + (cv::TermCriteria::EPS), 1000 , 0.3);
+          (cv::TermCriteria::MAX_ITER) + (cv::TermCriteria::EPS), 30 , 0.01);
        cv::goodFeaturesToTrack(left_cam, left_feats, 1000, 0.01, 7, cv::Mat(),
        7, false, 0.04);
-      //cv::cornerSubPix(left_cam, left_feats, cv::Size(5, 5), cv::Size(-1, -1),criteria);
-
+      //cv::cornerSubPix(left_cam, left_feats, cv::Size(5, 5), cv::Size(-1, -1),criteria); 
+ 
       // cv::Ptr<cv::FastFeatureDetector> detector =
       //     cv::FastFeatureDetector::create(thresh);
       // detector->detect(left_cam, left_keypoints);
@@ -58,16 +108,31 @@ class  StereoTrack
       //                cv::FILLED);
       //   }
       // }
+
+
+     
+      
+
       cv::Mat ViewMat;
-      left_cam.copyTo(ViewMat);
-      ViewMat+=mask;
-      cv::imshow("ViewMatMask",ViewMat);
-      cv::waitKey(10);
+      cv::hconcat(left_cam,right_cam,ViewMat);
+      cv::cvtColor(ViewMat,ViewMat,cv::COLOR_GRAY2RGB);
+      //ViewMat+=mask;
+      for(int i =0;i<left_feats.size();i++){
+        cv::circle(ViewMat,left_feats[i],1,cv::Scalar(0,0,255));
+      }
+
+      
+
       std::vector<uint8_t> status;
       std::vector<float> err;
      
+
+
       cv::calcOpticalFlowPyrLK(left_cam, right_cam, left_feats, right_feats,
-                               status, err, cv::Size(15,15), 2);
+                               status, err, cv::Size(21,21), 4);
+
+      
+
       std::cout<<"calcOpticalFlowPyrLK"<<std::endl;                       
       double fx = K.at<double>(0, 0);
       double fy = K.at<double>(1, 1);
@@ -75,6 +140,22 @@ class  StereoTrack
       double cy = K.at<double>(1, 2);
 
       int count = std::count(status.begin(), status.end(), 1);
+      std::default_random_engine dre;
+      std::uniform_int_distribution<int> uinifor(0,255);
+      for (int i = 0; i < right_feats.size(); i++) {
+        
+        if (status[i]) {
+           
+          cv::line(ViewMat,  left_feats[i],
+                   right_feats[i] + cv::Point2f( left_cam.cols,0),
+                   cv::Scalar(uinifor(dre), 0,uinifor(dre)));
+          cv::circle(ViewMat,
+                     right_feats[i] + cv::Point2f( left_cam.cols,0),
+                     2, cv::Scalar(0, 255, 0));
+        }
+      }
+      cv::imshow("ViewMatMask",ViewMat);
+      cv::waitKey(10);  
       track_3dpoints.resize(count);
       track_2dpoints.resize(count);
       std::vector<cv::Point2f> feats_tracked(count);
@@ -150,7 +231,9 @@ class  StereoTrack
       std::vector<cv::Point2f> feats_curr;
       std::cout<<"TrackKeyFrame"<<std::endl;
       cv::calcOpticalFlowPyrLK(key_img, curr_img, track_2dpoints, feats_curr,
-                               status, err);
+                               status, err,cv::Size(21,21),7);
+
+      std::cout<<"track_2dpoints.size()"<<track_2dpoints.size()<<std::endl;
       std::cout<<"TrackKeyFrame1"<<std::endl;
 
       int count = std::count(status.begin(), status.end(), 1);
@@ -169,12 +252,12 @@ class  StereoTrack
         }
       }
     RemoveOutliner(points, points_curr, point3ds);
-
+    std::cout<<"points_curr.size()"<<points_curr.size()<<std::endl;
     cv::Mat rvec,tvec;
   //  std::vector<uint8_t>  inliers;
     cv::Mat inliers;
     bool ret = cv::solvePnPRansac(point3ds, points_curr, K, dist_coeffs, rvec,
-                                  tvec, false, 100, 4.0, 0.99, inliers,
+                                  tvec, false, 100, 10.0, 0.99, inliers,
                                   cv::SOLVEPNP_ITERATIVE);
     cv::Mat R;
     std::cout<<"inliers.size()="<<inliers.rows<<std::endl;
