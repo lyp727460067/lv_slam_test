@@ -332,15 +332,18 @@ int main(int argc, char** argv) {
           PointCloudCallBack(msg.instantiate<sensor_msgs::PointCloud2>());
         }
       }
+      static  int  ration = 0;
       if (msg.isType<sensor_msgs::LaserScan>()) {
         if (msg.getTopic() == scan_topic) {
           sensor_msgs::LaserScan scan =
               *msg.instantiate<sensor_msgs::LaserScan>();
           // tfListener_.waitForTransform(
           // "base_link","laser",ros::Time(0),ros::Duration(1.0));;
-        
-          projector_.projectLaser(scan, cloud);
-          PointCloudCallBack(cloud_ptr);
+          if (ration++ >= 5) {
+            ration = 0;
+            projector_.projectLaser(scan, cloud);
+            PointCloudCallBack(cloud_ptr);
+          }
         }
       }
       if (msg.isType<nav_msgs::Odometry>()) {

@@ -11,72 +11,66 @@
 class  StereoTrack
 {
   public:
-   
    Eigen::Matrix4d Track(const cv::Mat& left_cam, const cv::Mat& right_cam) {
-     if(states==0){
-
-       Init(left_cam,right_cam);
+     if (states == 0) {
+       Init(left_cam, right_cam);
        states = 1;
-     }else if(states ==1){
-       if(!TrackKeyFrame(key_frame,left_cam)){
-          cv::waitKey(0);
-          Init(left_cam,right_cam);
+     } else if (states == 1) {
+       if (!TrackKeyFrame(key_frame, left_cam)) {
+         Init(left_cam, right_cam);
        }
      }
-    return pose_; 
+     return pose_;
    }
-   std::vector<cv::Point3f> GetTrackPoints(){
-     Eigen::Matrix4d TrackPoseToPose  =  k_pose_.inverse() *pose_;
+   std::vector<cv::Point3f> GetTrackPoints() {
+     Eigen::Matrix4d TrackPoseToPose = k_pose_.inverse() * pose_;
      std::vector<cv::Point3f> return_points;
-     for(auto point:track_3dpoints){
-        Eigen::Vector4d poin =  TrackPoseToPose.inverse()*Eigen::Vector4d(point.x,point.y,point.z,1);
-        return_points.push_back({poin[0],poin[1],poin[2]});
+     for (auto point : track_3dpoints) {
+       Eigen::Vector4d poin = TrackPoseToPose.inverse() *
+                              Eigen::Vector4d(point.x, point.y, point.z, 1);
+       return_points.push_back({poin[0], poin[1], poin[2]});
      }
-    return return_points;
+     return return_points;
    }
-   cv::Mat GetVisuImag(){
-     return feats_img;
-   }
-   private:
-    void MatchesDescriber(const cv::Mat& left_cam, const cv::Mat& right_cam) {
-      std::vector<cv::KeyPoint> keypoints1, keypoints2;
-      cv::Mat descriptors1, descriptors2;
-      cv::Ptr<cv::FeatureDetector> detector = cv::ORB::create();
-      cv::Ptr<cv::DescriptorExtractor> desctriptor_ex = cv::ORB::create();
-      cv::Ptr<cv::DescriptorMatcher> matcher = cv::DescriptorMatcher::create();
+   cv::Mat GetVisuImag() { return feats_img; }
 
-      detector->detect(left_cam, keypoints1);
-      detector->detect(right_cam, keypoints2);
-      desctriptor_ex->compute(left_cam, keypoints1, descriptors1);
-      desctriptor_ex->compute(right_cam, keypoints2, descriptors2);
+  private:
+   void MatchesDescriber(const cv::Mat& left_cam, const cv::Mat& right_cam) {
+     std::vector<cv::KeyPoint> keypoints1, keypoints2;
+     cv::Mat descriptors1, descriptors2;
+     cv::Ptr<cv::FeatureDetector> detector = cv::ORB::create();
+     cv::Ptr<cv::DescriptorExtractor> desctriptor_ex = cv::ORB::create();
+     cv::Ptr<cv::DescriptorMatcher> matcher = cv::DescriptorMatcher::create("BruteForce-Hamming");
 
-      std::vector<cv::DMatch> matches;
-      matcher->match(descriptors1, descriptors2, matches);
+     detector->detect(left_cam, keypoints1);
+     detector->detect(right_cam, keypoints2);
+     desctriptor_ex->compute(left_cam, keypoints1, descriptors1);
+     desctriptor_ex->compute(right_cam, keypoints2, descriptors2);
 
-      double min_dist = 10000, max_dist = -1;
+     std::vector<cv::DMatch> matches;
+     matcher->match(descriptors1, descriptors2, matches);
 
-      for (int i = 0; i < descriptors1.rows; i++) {
-        double dist = matches[i].distance;
-        if (dist < min_dist) {
-          dist = min_dist;
-        }
-        if (dist > max_dist) {
-          dist = max_dist;
-        }
-      }
+     double min_dist = 10000, max_dist = -1;
 
-      std::vector<cv::DMatch> good_matches;
-      for (int i = 0; i < descriptors1.rows) {
-        if (matches[i].distance <= max(2 * min_dist, 30.0)) {
-          good_matches.push_back(matches[i]);
-        }
-      }
-    
+     for (int i = 0; i < descriptors1.rows; i++) {
+       double dist = matches[i].distance;
+       if (dist < min_dist) {
+         dist = min_dist;
+       }
+       if (dist > max_dist) {
+         dist = max_dist;
+       }
+     }
 
-    for(int i = 0;i<good_matches.size();i++) {
-        
+     std::vector<cv::DMatch> good_matches;
+     for (int i = 0; i < descriptors1.rows;i++) {
+       if (matches[i].distance <= std::max(2 * min_dist, 30.0)) {
+         good_matches.push_back(matches[i]);
+       }
+     }
 
-    }
+     for (int i = 0; i < good_matches.size(); i++) {
+     }
 
 
 
@@ -88,8 +82,7 @@ class  StereoTrack
       cv::Mat mask = cv::Mat(left_cam.size(), CV_8UC1, cv::Scalar(100));
       cv::TermCriteria criteria = cv::TermCriteria(
           (cv::TermCriteria::MAX_ITER) + (cv::TermCriteria::EPS), 30 , 0.01);
-       cv::goodFeaturesToTrack(left_cam, left_feats, 1000, 0.01, 7, cv::Mat(),
-       7, false, 0.04);
+       cv::goodFeaturesToTrack(left_cam, left_feats, 1000, 0.01, 30, cv::Mat());
       //cv::cornerSubPix(left_cam, left_feats, cv::Size(5, 5), cv::Size(-1, -1),criteria); 
  
       // cv::Ptr<cv::FastFeatureDetector> detector =
@@ -109,19 +102,13 @@ class  StereoTrack
       //   }
       // }
 
-
-     
-      
-
-      cv::Mat ViewMat;
-      cv::hconcat(left_cam,right_cam,ViewMat);
-      cv::cvtColor(ViewMat,ViewMat,cv::COLOR_GRAY2RGB);
-      //ViewMat+=mask;
-      for(int i =0;i<left_feats.size();i++){
-        cv::circle(ViewMat,left_feats[i],1,cv::Scalar(0,0,255));
-      }
-
-      
+       cv::Mat ViewMat;
+       cv::hconcat(left_cam, right_cam, ViewMat);
+       cv::cvtColor(ViewMat, ViewMat, cv::COLOR_GRAY2RGB);
+       // ViewMat+=mask;
+       for (int i = 0; i < left_feats.size(); i++) {
+         cv::circle(ViewMat, left_feats[i], 1, cv::Scalar(0, 0, 255));
+       }
 
       std::vector<uint8_t> status;
       std::vector<float> err;
@@ -299,7 +286,7 @@ class  StereoTrack
    const  cv::Mat dist_coeffs = cv::Mat::zeros(5, 1, CV_64FC1);
    const int max_feats_size = 1000;
    const int  min_feat_dist =10;
-   const int min_disparity = 5;
+   const int min_disparity = 3;
    const int max_epipolar = 2;
    const  int min_feat_cnt = 50;
    const double base_line =  0.05;

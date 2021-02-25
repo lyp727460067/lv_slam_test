@@ -28,23 +28,20 @@ StereoTrack StereoTrack_;
 tf::TransformBroadcaster* tf_broadcaster;
 ros::Publisher point_cloud_pub;
 ros::Publisher feat_img_pub;
-void PubPointCloud2(const std::vector<cv::Point3f> &points)
-{
-
+void PubPointCloud2(const std::vector<cv::Point3f>& points) {
   sensor_msgs::PointCloud point_cloud;
   sensor_msgs::PointCloud2 point_cloud2;
-  for(auto point:points){
-    geometry_msgs::Point32 geo_point ;
-    geo_point.x  = point.x;
-    geo_point.y  = point.y;
-    geo_point.z  = point.z;
+  for (auto point : points) {
+    geometry_msgs::Point32 geo_point;
+    geo_point.x = point.x;
+    geo_point.y = point.y;
+    geo_point.z = point.z;
     point_cloud.points.push_back(geo_point);
   }
   point_cloud.header.frame_id = "camere_link";
-  point_cloud.header.stamp =  ros::Time::now();
-  sensor_msgs::convertPointCloudToPointCloud2(point_cloud,point_cloud2);
+  point_cloud.header.stamp = ros::Time::now();
+  sensor_msgs::convertPointCloudToPointCloud2(point_cloud, point_cloud2);
   point_cloud_pub.publish(point_cloud2);
-
 }
 void PubTf(const Eigen::Matrix4d& pose1) {
   Eigen::Matrix3d base_link2_camera =(
@@ -86,10 +83,9 @@ void stereo_tracker(const std::pair<cv::Mat, cv::Mat>& stereo_imag) {
   Eigen::Matrix4d pose =
       StereoTrack_.Track(stereo_imag.first, stereo_imag.second);
   PubTf(pose);
-  std::vector<cv::Point3f> points  =  StereoTrack_.GetTrackPoints();
+  std::vector<cv::Point3f> points = StereoTrack_.GetTrackPoints();
   PubPointCloud2(points);
   PubFeatur(StereoTrack_.GetVisuImag());
-
 }
 
 int main(int argc,char** argv)

@@ -16,7 +16,7 @@ find_package(catkin REQUIRED COMPONENTS
 )
 find_package(PCL REQUIRED QUIET)
 find_package(Ceres REQUIRED)
-
+find_package(GTSAM REQUIRED QUIET)
 set(OpenCV_DIR /home/lyp/third_part/opencv/opencv/build)
 #find_package(OpenCV)
 find_package(OpenCV  REQUIRED)
@@ -115,6 +115,7 @@ find_package(GTest  REQUIRED)
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
+  DEPENDS  GTSAM
 #  INCLUDE_DIRS include
 #  LIBRARIES vslam_test
 #  CATKIN_DEPENDS other_catkin_pkg
@@ -134,12 +135,14 @@ include_directories(
 ${OpenCV_INCLUDE_DIR}
   ${Glog_INLUCDE_DIRS}
   ${CERES_INCLUDE_DIRS}
+  ${GTSAM_INCLUDE_DIR}
 )
 
 link_directories(
 	${PCL_LIBRARY_DIRS}
   ${GLOG_LIBRARIES}
   ${GTEST_LIBRARIES}
+   ${GTSAM_LIBRARY_DIRS}
 )
 ## Declare a C++ library
 # add_library(${PROJECT_NAME}
@@ -155,6 +158,7 @@ link_directories(
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
 add_executable(${PROJECT_NAME}_stereo_node src/stereo_test.cpp)
+add_executable(${PROJECT_NAME}_gtsam_test_node src/gtsam_test.cpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -165,6 +169,7 @@ add_executable(${PROJECT_NAME}_stereo_node src/stereo_test.cpp)
 ## Add cmake target dependencies of the executable
 ## same as for the library above
 # add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(${PROJECT_NAME}_gtsam_test_node ${catkin_EXPORTED_TARGETS})
 
 # Specify libraries to link a library or executable target against
  target_link_libraries(${PROJECT_NAME}_stereo_node
@@ -175,6 +180,17 @@ add_executable(${PROJECT_NAME}_stereo_node src/stereo_test.cpp)
  ${GTEST_LIBRARIES}
    ${CERES_LIBRARIES}
   ${OpenCV_LIBS}
+ -pthread
+ )
+ target_link_libraries(${PROJECT_NAME}_gtsam_test_node
+ ${catkin_LIBRARIES}
+ ${PCL_LIBRARIES}
+ ${EIGEN3_LIBS}
+ ${GLOG_LIBRARIES}
+ ${GTEST_LIBRARIES}
+   ${CERES_LIBRARIES}
+  ${OpenCV_LIBS}
+  -lgtsam
  -pthread
  )
 
