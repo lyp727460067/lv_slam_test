@@ -4,22 +4,44 @@
 #include <map>
 #include <vector>
 #include "opencv/opencv.hpp"
+#include <memory>
+#include "opencv2/core.hpp"
 
 class Frame
 {
   public:
-  std::map<int,cv::Vector2d> features_;
+  int id_;
+  std::vector<std::pair<int,cv::Point2d>> features_;
+  
+};
+
+struct SliedeWindowResult
+{
+
+
+
 };
 
 class PoseSlideWindow
 {
   public:
+  SliedeWindowResult  Insert(std::unique_ptr<Frame> frame)
+  {
+
+
+
+
+  };
+
+
 
 
   private:
   int window_size  = 10;
+
+
   std::vector<Frame*> frames_(window_size,nullptr);
-  
+  std::map<>
 
 
 
