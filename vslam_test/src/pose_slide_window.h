@@ -7,12 +7,15 @@
 #include <memory>
 #include "opencv2/core.hpp"
 
-class Frame
-{
-  public:
+struct KeyPointWithId {
+  int id;
+  cv::Point2d point;
+  double depth=-1;
+};
+class Frame {
+ public:
   int id_;
-  std::vector<std::pair<int,cv::Point2d>> features_;
-  
+  std::vector<KeyPointWithId> key_points_with_ids_;
 };
 
 struct SliedeWindowResult
@@ -37,15 +40,14 @@ class PoseSlideWindow
 
 
   private:
+  
+
   int window_size  = 10;
+  std::vector<std::unique_ptr<Frame>> frames_(window_size,nullptr);
+  std::multimap<int,Frame>  key_point;
 
 
-  std::vector<Frame*> frames_(window_size,nullptr);
-  std::map<>
-
-
-
-}
+};
 
 
 
