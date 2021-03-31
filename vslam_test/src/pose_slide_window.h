@@ -6,16 +6,16 @@
 #include "opencv/opencv.hpp"
 #include <memory>
 #include "opencv2/core.hpp"
+#include "Eigen/Eigen"
 
-struct KeyPointWithId {
-  int id;
+struct KeyPoint {
   cv::Point2d point;
   double depth=-1;
 };
 class Frame {
  public:
-  int id_;
-  std::vector<KeyPointWithId> key_points_with_ids_;
+  std::map<int,KeyPoint> keyPoints_;
+
 };
 
 struct SliedeWindowResult
@@ -30,21 +30,17 @@ class PoseSlideWindow
   public:
   SliedeWindowResult  Insert(std::unique_ptr<Frame> frame)
   {
-
-
-
-
+   frames_.i 
   };
 
 
 
 
   private:
-  
-
+  static int frame_id; 
   int window_size  = 10;
-  std::vector<std::unique_ptr<Frame>> frames_(window_size,nullptr);
-  std::multimap<int,Frame>  key_point;
+  std::map<int,std::unique_ptr<Frame>> frames_;
+  std::multimap<int,Frame>  key_point_id_Corresponding_;
 
 
 };
