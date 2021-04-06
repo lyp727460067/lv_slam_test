@@ -13,9 +13,19 @@
 #include "opencv2/core.hpp"
 #include "opencv2/opencv.hpp"
 
+class Frame {
+ public:
+  std::map<int,KeyPoint> keyPoints_;
+  Eigen::Vector3f pose_t;
+  Eigen::Quaternionf  pose_q;
+
+
+};
+
+
 struct KeyPoint {
-  cv::Point2d point;
-  Eigen::Vector2d velocity;
+  cv::Point2f point;
+  Eigen::Vector2f velocity;
   double depth = -1;
 };
 
@@ -37,7 +47,7 @@ struct KeyPoint {
 
 struct ReProjectionErr {
  public:
-    ReProjectionErr(double x, double y,double rx,double ry,double rz):x_(x),y_(y),rx_(rx),ry_(ry),rz_(rz){}
+    ReProjectionErr( float x, float y,float rx,float ry,float rz):x_(x),y_(y),rx_(rx),ry_(ry),rz_(rz){}
 
   template <typename T>
   bool operator()(const T* t1_, const T* q1_, const T* t2_, const T* q2_,
@@ -70,30 +80,23 @@ struct ReProjectionErr {
 
     return true;
   }
-  static  ceres::CostFunction* Creat(double x,double y,double rx,double ry,double rz){
+  static  ceres::CostFunction* Creat(float x,float y,float rx,float ry,float rz){
     return new ceres::AutoDiffCostFunction<ReProjectionErr,2,3,4,3,4>(
         new ReProjectionErr(x, y,rx,ry,rz));
   }
  private:
   const cv::Mat K =
-      (cv::Mat_<double>(3, 3) << 385.0450439453125, 0.0, 323.1961975097656, 0.0,
+      (cv::Mat_<float>(3, 3) << 385.0450439453125, 0.0, 323.1961975097656, 0.0,
        385.0450439453125, 244.11233520507812, 0.0, 0.0, 1.0);
   
-  double x_;
-  double y_;
+  float x_;
+  float y_;
 
-  double rx_;
-  double ry_;
-  double rz_;
+  float rx_;
+  float ry_;
+  float rz_;
 };
-class Frame {
- public:
-  std::map<int,KeyPoint> keyPoints_;
-  Eigen::Vector3d pose_t;
-  Eigen::Quaterniond  pose_q;
 
-
-};
 
 struct SliedeWindowResult
 {
@@ -143,15 +146,15 @@ class PoseSlideWindow
                  std::multimap<int, int>::iterator>
            range_iter = key_point_corresponding_.equal_range(iter->first);
        for (auto it = range_iter.first++; it != range_iter.second; it++) {
-         double u = frames_[it->second]->keyPoints_[it->first].point.x;
-         double v = frames_[it->second]->keyPoints_[it->first].point.y;
-         double rx = frames_[range_iter.first->second]
+         float u = frames_[it->second]->keyPoints_[it->first].point.x;
+         float v = frames_[it->second]->keyPoints_[it->first].point.y;
+         float rx = frames_[range_iter.first->second]
                          ->keyPoints_[range_iter.first->first]
                          .point.x;
-         double ry = frames_[range_iter.first->second]
+         float ry = frames_[range_iter.first->second]
                          ->keyPoints_[range_iter.first->first]
                          .point.y;
-         double rz = frames_[range_iter.first->second]
+         float rz = frames_[range_iter.first->second]
                          ->keyPoints_[range_iter.first->first]
                          .depth;
          if(rz <0)continue;
