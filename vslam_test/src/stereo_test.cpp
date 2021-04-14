@@ -24,7 +24,6 @@ StereoTrack StereoTrack_;
 
 
 
-
 tf::TransformBroadcaster* tf_broadcaster;
 ros::Publisher point_cloud_pub;
 ros::Publisher feat_img_pub;
@@ -131,8 +130,9 @@ int main(int argc,char** argv)
           cv::Mat matrix = cv::imdecode(cv::Mat(msg_ptr->data), 0);
           matrix.copyTo(stereo_imag.first);
         //  std::cout<<"left_camera_topic"<<std::endl;
-         // cv::imshow("left_camera", matrix);
-         // cv::waitKey(1);
+          cv::Mat clolor_map =matrix.clone();
+          cv::cvtColor(matrix,clolor_map,cv::COLOR_GRAY2RGB);
+
         }
         if (msg.getTopic() == right_camera_topic) {
       //   std::cout<<"right_camera_topic"<<std::endl;

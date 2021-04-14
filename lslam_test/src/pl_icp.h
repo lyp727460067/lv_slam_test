@@ -8,6 +8,8 @@
 #include "pcl/point_types.h"
 
 #include "ceres/autodiff_cost_function.h"
+
+
 template <typename T>
 inline T NormalizeAngle(const T& angle_radians) {
   T two_pi(2.0 * M_PI);
@@ -41,7 +43,7 @@ class PointLineCostFunction {
     
     Eigen::Map<const Eigen::Matrix<T,3,1>> t(pose_t);
     Eigen::Map<const Eigen::Quaternion<T>>q(pose_q);
-    
+     
     Eigen::Matrix<T,3,1> normalized_p1p2 =  (near_p1_-near_p2_).normalized().template cast<T>();
     Eigen::Matrix<T,3,1> normal_p1p2{-normalized_p1p2.y(),normalized_p1p2.x(),T(0)}; 
     Eigen::Matrix<T,3,1> p_a  = q.toRotationMatrix()*p_.template cast<T>() +t;

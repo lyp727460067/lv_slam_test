@@ -12,22 +12,22 @@
 #include "key_frame.h"
 #include "opencv2/core.hpp"
 #include "opencv2/opencv.hpp"
-
+struct KeyPoint {
+  cv::Point2f point;
+  Eigen::Vector2d velocity;
+  double depth = -1;
+};
 class Frame {
  public:
   std::map<int,KeyPoint> keyPoints_;
-  Eigen::Vector3f pose_t;
-  Eigen::Quaternionf  pose_q;
+  Eigen::Vector3d pose_t =Eigen::Vector3d::Identity();
+  Eigen::Quaterniond  pose_q = Eigen::Quaterniond::Identity();
 
 
 };
 
 
-struct KeyPoint {
-  cv::Point2f point;
-  Eigen::Vector2f velocity;
-  double depth = -1;
-};
+;
 
 // class AngleLocalParameterization {
 //   public:
@@ -47,7 +47,13 @@ struct KeyPoint {
 
 struct ReProjectionErr {
  public:
-    ReProjectionErr( float x, float y,float rx,float ry,float rz):x_(x),y_(y),rx_(rx),ry_(ry),rz_(rz){}
+    ReProjectionErr( float x, float y,float rx,float ry,float rz):x_(x),y_(y),rx_(rx),ry_(ry),rz_(rz){
+      float fx = (K.at<float>(0, 0));
+      float cx = (K.at<float>(0, 2));
+      float cy = (K.at<float>(1, 2));
+      rx_ = ((rx_)-cx) * rz_ / fx;
+      ry_ = ((ry_)-cy) * rz_ / fx;
+    }
 
   template <typename T>
   bool operator()(const T* t1_, const T* q1_, const T* t2_, const T* q2_,
@@ -57,26 +63,21 @@ struct ReProjectionErr {
     Eigen::Map<const Eigen::Quaternion<T>> q1(q1_);
     Eigen::Map<const Eigen::Quaternion<T>> q2(q2_);
 
-    T fx = T(K(0, 0));
-    T cx = T(K(0, 2));
-    T cy = T(k(1, 2));
-    T z = T(rz_);
-    T x = (T(rx_) - cx) * z / fx;
-    T y = (T(ry_) - cy) * z / fx;
+    Eigen::Quaternion<T> relative_q = q2.inverse() * q1;
+    Eigen::Matrix<T, 3, 1> relative_t = q2.inverse().toRotationMatrix() * t1 -
+                                        q2.inverse().toRotationMatrix() * t2;
 
-    Eigen::Quaternion<T> relative_q = q1.conjugate() * q2;
-    Eigen::Matrix<T, 3, 1> relative_t = q1.conjugate().toRotationMatrix() * t2 -
-                                        q1.conjugate().toRotationMatrix() * t1;
-
-    Eigen::Matrix<T, 3, 1> p(x, y, z);
+    Eigen::Matrix<T, 3, 1> rel_p{T(rx_), T(ry_), T(rz_)};
     Eigen::Matrix<T, 3, 1> project_p =
         relative_q.toRotationMatrix() * rel_p + relative_t;
+    T fx = T(K.at<float>(0, 0));
+    T cx = T(K.at<float>(0, 2));
+    T cy = T(K.at<float>(1, 2));
+    T u = (project_p[0] * fx + cx) / project_p[2];
+    T v = (project_p[1] * fx + cy) / project_p[2];
 
-    T u = (project_p[0] * fx + cx) / z;
-    T v = (project_p[1] * fx + cy) / z;
-
-    residul[0] = x_ - u;
-    residul[1] = y_ v;
+    residul[0] = (T(x_) - u);
+    residul[1] =(T(y_) - v);
 
     return true;
   }
@@ -100,7 +101,7 @@ struct ReProjectionErr {
 
 struct SliedeWindowResult
 {
-
+  Eigen::Matrix4d pose_end_;
 
 
 };
@@ -116,16 +117,26 @@ class PoseSlideWindow
       sum_parallax+=point.second.velocity;
     }
     Eigen::Vector2d ave_parellax =sum_parallax/frame.keyPoints_.size();
+    std::cout<<"ave_parellax"<<ave_parellax[0]<<std::endl;
     if (frames_.size() == window_size) {
       if (ave_parellax[0] < 10) {
-        DeleteFrame(frames_.end()->first);
+        DeleteFrame((--frames_.end())->first);
       } else {
         DeleteFrame(frames_.begin()->first);
       }
     }
+    std::cout<<"InsertFrame"<<std::endl;
     InsertFrame(frame);
+    std::cout<<"Opimizetion"<<std::endl;
     Opimizetion();
 
+    Eigen::Matrix4d pose = Eigen::Matrix4d::Identity();
+   
+    pose.block<3,3>(0,0)  =  (--frames_.end())->second->pose_q.toRotationMatrix();
+    pose.block<3,1>(0,3)  =  (--frames_.end())->second->pose_t;
+    std::cout<<pose<<std::endl;
+    return {pose};
+   
   };
 
   
@@ -133,10 +144,12 @@ class PoseSlideWindow
 
   private:
    void Opimizetion() {
+     if(frames_.size()<window_size)return ;
      ceres::Problem problem;
+    ceres::LossFunction *loss_function;
+    loss_function = new ceres::HuberLoss(1.0);
      ceres::LocalParameterization* quaternion_local =
          new ceres::EigenQuaternionParameterization;
-     ceres::LossFunction* loss_function = NULL;
      for (auto iter = key_point_corresponding_.begin();
           iter != key_point_corresponding_.end();
           iter = key_point_corresponding_.upper_bound(iter->first)) {
@@ -145,7 +158,7 @@ class PoseSlideWindow
        std::pair<std::multimap<int, int>::iterator,
                  std::multimap<int, int>::iterator>
            range_iter = key_point_corresponding_.equal_range(iter->first);
-       for (auto it = range_iter.first++; it != range_iter.second; it++) {
+       for (auto it = std::next(range_iter.first); it != range_iter.second; it++) {
          float u = frames_[it->second]->keyPoints_[it->first].point.x;
          float v = frames_[it->second]->keyPoints_[it->first].point.y;
          float rx = frames_[range_iter.first->second]
@@ -157,9 +170,9 @@ class PoseSlideWindow
          float rz = frames_[range_iter.first->second]
                          ->keyPoints_[range_iter.first->first]
                          .depth;
-         if(rz <0)continue;
+         if(rz <0  || rz >50)continue;
          problem.AddResidualBlock(
-             ReProjectionErr::Creat(u, v, rx, ry, rz), NULL,
+             ReProjectionErr::Creat(u, v, rx, ry, rz), loss_function,
              frames_[range_iter.first->second]->pose_t.data(),
              frames_[range_iter.first->second]->pose_q.coeffs().data(),
              frames_[it->second]->pose_t.data(),
@@ -172,23 +185,28 @@ class PoseSlideWindow
              frames_[it->second]->pose_q.coeffs().data(), quaternion_local);
        }
      }
-
+    std::cout<<"options"<<std::endl;
      ceres::Solver::Options options;
-     options.minimizer_progress_to_stdout = false;
-     options.max_num_iterations = 20;
-     options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
-     ceres::Solver::Summary summary;
-     ceres::Solve(options, &problem, &summary);
      problem.SetParameterBlockConstant(
          frames_.begin()->second->pose_q.coeffs().data());
      problem.SetParameterBlockConstant(frames_.begin()->second->pose_t.data());
+     options.minimizer_progress_to_stdout = false;
+     options.linear_solver_type = ceres::DENSE_SCHUR;
+     options.trust_region_strategy_type = ceres::DOGLEG;
+     ceres::Solver::Summary summary;
+    // ceres::Solve(options, &problem, &summary);
+
    }
 
-  int window_size  = 10;
+  int window_size  = 5;
   void InsertFrame(const Frame&frame){
     Frame * temp_fram  = new Frame();
     *temp_fram = frame;
-    frames_.insert({frame_id++,temp_fram});
+    frames_.insert({frame_id,temp_fram});
+    for(auto featur_id:frame.keyPoints_){
+        key_point_corresponding_.insert({featur_id.first,frame_id});
+    }
+   frame_id++;
   }
   void DeleteFrame(int frame_id){
     for (auto point : frames_[frame_id]->keyPoints_) {
@@ -212,7 +230,7 @@ class PoseSlideWindow
 
 
 
-  static int frame_id; 
+   int frame_id = 0; 
   std::map<int,Frame*> frames_;
   std::multimap<int,int>  key_point_corresponding_;//feature id  frame id;
 

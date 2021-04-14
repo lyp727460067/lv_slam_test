@@ -1,6 +1,6 @@
 #ifndef _STEREO_TEST_H
 #define _STEREO_TEST_H
-#include <Eigen/Core>
+#include "Eigen/Core"
 #include <iostream>
 #include <map>
 #include <vector>
@@ -17,7 +17,7 @@ class FrameImag
   Frame frame;
   cv::Mat img;
 };
-class Track
+class VTrack
 {
   public:
    std::map<int, KeyPoint> OpticalTracking(cv::Mat init_pose, FrameImag* pre_frame,
@@ -34,19 +34,25 @@ class Track
          KeyPointToCvPoints(pre_frame->frame.keyPoints_);
       
      std::vector<cv::Point2f> curr_frame_point;
+     std::cout<<"calcOpticalFlowPyrLK"<<std::endl;
+     std::cout<<"pre_frame_point.size()"<<pre_frame_point.size()<<std::endl;
      cv::calcOpticalFlowPyrLK(pre_frame->img, cur_frame->img, pre_frame_point,
                               curr_frame_point, status, err, cv::Size(21, 21),
-                              7);
+                              1);
      auto pre_frame_inter = pre_frame->frame.keyPoints_.begin();
+     std::cout<<"track_points"<<std::endl;
      std::map<int, KeyPoint> track_points;
      for (int i = 0; i < status.size(); i++) {
        if (status[i]) {
          int id = pre_frame_inter->first;
          cv::Point2f velocity = {pre_frame_point[i] - curr_frame_point[i]};
          track_points.emplace(
-             id, KeyPoint{curr_frame_point[i], {velocity.x, velocity.y}}, -1);
+             id, KeyPoint{curr_frame_point[i], {velocity.x, velocity.y}});
        }
+        pre_frame_inter++;   
      }
+
+     std::cout<<" RemoveOutLiner"<<std::endl;
     return RemoveOutLiner(pre_frame->frame.keyPoints_,track_points);
 
    }
@@ -54,18 +60,23 @@ class Track
                        const std::map<int, KeyPoint>& cur_points) {
      std::vector<cv::Point2f> cv_cur_points = KeyPointToCvPoints(cur_points);
      std::vector<cv::Point2f> cv_pre_points;
-     for (int i = 0; i < cv_cur_points.size(); i++) {
-       cv_pre_points[i] = pre_points.at(i).point;
+     for(auto point:cur_points){
+        cv_pre_points.push_back(  pre_points.at(point.first).point);
      }
+    std::cout<<"cv_cur_points"<<std::endl;   
      std::map<int, KeyPoint> track_points;
      std::vector<uint8_t> status;
      cv::Mat F = cv::findFundamentalMat(cv_pre_points, cv_cur_points,
                                         cv::FM_RANSAC, 1.0, 0.99, status);
-     for (int i = 0; i < status.size(); i++) {
-       if (status[i]) {
-         track_points.emplace(cur_points.at(i));
-       }
-     }
+
+     std::cout<<"findFundamentalMat"<<std::endl;
+    int  i  = 0;
+    for (auto point : cur_points) {
+      if (status[i++]) {
+        track_points.emplace(point);
+      }
+    }
+
      return track_points;
    }
  
@@ -88,33 +99,117 @@ class Track
       return cv_points;
     }
 
+  cv::Mat GetMask(const cv::Mat& cam,const std::map<int, KeyPoint>& points){
 
-  void Tracking(const cv::Mat& left_cam, const cv::Mat& right_cam)
-  {
-    FrameImag *curr_img = new FrameImag{Frame(),right_cam};
-    auto track_points  = OpticalTracking(cv::Mat(),pre_img,curr_img);
-    if(track_points.size()<20){
-      curr_img->frame.keyPoints_ = track_points;
-      FrameImag *right_img = new FrameImag{Frame(),right_cam};
-      auto ex_feature = ExtraFeature(cv::Mat(),left_cam,1000);
-      track_points.insert(ex_feature.begin(),ex_feature.end());
-      auto right_track_points =   OpticalTracking(cv::Mat(),curr_img,right_img);
-
+    cv::Mat mask = cv::Mat(cam.size(), CV_8UC1, cv::Scalar(100));
+    for (auto point : points) {
+      cv::Point2f cvpoint = point.second.point;
+      if (mask.at<uint8_t>(cvpoint.y, cvpoint.x)) {
+        const int min_feat_dist = 10;
+        cv::circle(mask,cvpoint, min_feat_dist, cv::Scalar(0), cv::FILLED);
+      }
     }
-    
+      return mask;
+  }
+
+  void ShowTracker(FrameImag *frame)
+  {
+      cv::Mat img_feat;
+      cv::cvtColor(frame->img, img_feat,  cv::COLOR_GRAY2RGB);
+      for(auto keypoint:frame->frame.keyPoints_){
+          //cv::line(img_feat,cur_feats[i],pre_feats[i],cv::Scalar(0,0,255));
+          cv::circle(img_feat,keypoint.second.point,1,cv::Scalar(0,255,0));   
+      }
+     cv::imshow("tracker show",img_feat);
+     cv::waitKey(1);
 
   }
 
-  std::map<int, KeyPoint> TriangulateTwoframe(
-      const std::map<int, KeyPoint> left,
-      const std::map<int, KeyPoint>& right) {
+  Eigen::Matrix4d Tracking(const cv::Mat& left_cam, const cv::Mat& right_cam)
+  {
+    if(pre_img!=nullptr){
+    std::cout<<"pre_imgpre_img->frame.keyPoints_.size()"<<pre_img->frame.keyPoints_.size()<<std::endl;
+    }
+    FrameImag *curr_img = new FrameImag{Frame(),left_cam};
+    std::cout<<"Tracking"<<std::endl;
+    auto track_points  = OpticalTracking(cv::Mat(),pre_img,curr_img);
+    curr_img->frame.keyPoints_ = track_points; 
+    ShowTracker(curr_img);
 
+    if(track_points.size()<20){
+      std::cout<<"track_points.size"<<track_points.size()<<std::endl;
+      FrameImag *right_img = new FrameImag{Frame(),right_cam};
+      auto ex_feature = ExtraFeature(GetMask(left_cam,track_points),left_cam,1000);
+      std::cout<<"ExtraFeature"<<ex_feature.size()<<std::endl;
+      track_points.insert(ex_feature.begin(),ex_feature.end());
+      std::cout<<"track_points.size()"<<track_points.size()<<std::endl;
+      curr_img->frame.keyPoints_ = track_points;   
+      auto right_track_points =   OpticalTracking(cv::Mat(),curr_img,right_img);
+      std::cout<<"tTriangulateTwoframe"<<std::endl;
+      TriangulateTwoframe(Eigen::Matrix4f::Identity(),curr_img->frame.keyPoints_,right_track_points); 
+      delete right_img;   
+ 
+    }
+    Frame curr_frame = {curr_img->frame.keyPoints_};
+    std::cout<<"insert slide window"<<std::endl;
+    auto pose_end =  pose_slide_window_.Insert(curr_frame);
+    std::cout<<"end"<<std::endl;
+    if(pre_img != nullptr){
+      delete pre_img;
+    }
+    pre_img = curr_img;
+   
+    return pose_end.pose_end_;
 
+  }
+  Eigen::Vector2f CvPoint2Eigen(cv::Point2f& point){
+    return Eigen::Vector2f{point.x,point.y};
+  }
+  Eigen::Matrix4f RightCamPose(){
+    Eigen::Matrix4f pose =  Eigen::Matrix4f::Identity();
+    pose(2,3)  =  0.05;
+    return pose;
+  }
+  void TriangulateTwoframe(Eigen::Matrix4f pose, std::map<int, KeyPoint>& left,
+                           const std::map<int, KeyPoint>& right) {
+    for (auto& point : left) {
+      if (point.second.depth == -1) {
+        int left_id = point.first;
+        cv::Point2f left_point = point.second.point;
+        if(right.count(left_id)==0)continue;
+        cv::Point2f right_point = right.at(left_id).point;
+        auto point_3d = TriangulateTwoPoint(
+            Eigen::Matrix4f::Identity(), RightCamPose(),
+            CvPoint2Eigen(left_point), CvPoint2Eigen(right_point));
+        point.second.depth = point_3d.z();
+        std::cout<<" point_3d.z()"<< point_3d.z()<<std::endl;
+      }
+    }
+  }
+  Eigen::Vector3f TriangulateTwoPoint(const Eigen::Matrix4f& pose0,
+                                        const Eigen::Matrix4f& pose1,
+                                        const Eigen::Vector2f& point00,
+                                        const Eigen::Vector2f& point11) {
+    Eigen::Matrix4f M = Eigen::Matrix4f::Zero();
+    Eigen::Vector2f point0{
+        (point00.x() - K.at<double>(0, 2)) / K.at<double>(0, 0),
+        (point00.y() - K.at<double>(1, 2)) / K.at<double>(1, 1)};
+    Eigen::Vector2f point1{
+        (point11.x() - K.at<double>(0, 2)) / K.at<double>(0, 0),
+        (point11.y() - K.at<double>(1, 2)) / K.at<double>(1, 1)};
+
+    //std::cout<<point0<<point1<<std::endl;
+    M.row(0) = point0.x() * pose0.row(2) - pose0.row(0);
+    M.row(1) = point0.y() * pose0.row(2) - pose0.row(1);
+    M.row(2) = point1.x() * pose1.row(2) - pose1.row(0);
+    M.row(3) = point1.y() * pose1.row(2) - pose1.row(1);
+    Eigen::Vector4f point =
+        M.jacobiSvd(Eigen::ComputeFullV).matrixV().rightCols<1>();
+    return point.block<3,1>(0,0)/point(3);
   }
   std::map<int, KeyPoint> ExtraFeature(cv::Mat&&mask,const cv::Mat& img,int feature_num)
   {
     static int point_id  = 0;
-
     std::vector<cv::Point2f> feats_points;
     cv::goodFeaturesToTrack(img, feats_points, feature_num, 0.01, 30, mask);
     std::map<int, KeyPoint> track_points;
@@ -123,22 +218,24 @@ class Track
     }
     return track_points;
   }
+
+  bool IsInited(){
+    return pre_img != nullptr;
+  }
   private:
    FrameImag* pre_img;
+   PoseSlideWindow pose_slide_window_;
+    const cv::Mat K =
+       (cv::Mat_<double>(3, 3) << 385.0450439453125, 0.0, 323.1961975097656,
+        0.0, 385.0450439453125, 244.11233520507812, 0.0, 0.0, 1.0);
 
- 
 };
 
 class  StereoTrack
 {
   public:
    Eigen::Matrix4d Track(const cv::Mat& left_cam, const cv::Mat& right_cam) {
-   
-   static  bool first = false;
-   if(!first){
-     FrameImag * pre_img = nullptr;
-     
-   }
+    return  tracker_.Tracking(left_cam,right_cam);
 
 
     //  if (states == 0) {
@@ -149,7 +246,7 @@ class  StereoTrack
     //      Init(left_cam, right_cam);
     //    }
     //  }
-     return pose_;
+     //return pose_;
    }
    std::vector<cv::Point3f> GetTrackPoints() {
      Eigen::Matrix4d TrackPoseToPose = k_pose_.inverse() * pose_;
@@ -427,6 +524,9 @@ class  StereoTrack
    Eigen::Matrix4d k_pose_= Eigen::Matrix4d::Identity();
    int states = 0;
    cv::Mat feats_img;
+
+
+   VTrack  tracker_;
 
       
 };
