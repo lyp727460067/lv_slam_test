@@ -1,0 +1,17 @@
+<launch>
+<arg name="bag_filenames"/>
+  <param name="robot_description"
+    textfile="$(find lslam_test)/urdf/test.urdf" />
+
+  <node name="robot_state_publisher" pkg="robot_state_publisher"
+    type="robot_state_publisher" />
+
+<!--<node pkg="tf" type="static_transform_publisher" name="link1_broadcaster" args="0 0 0 0 0 0 1 base_link laser 1 " />-->
+<node pkg="vslam_test"  type="ekf_test"  name="ekf_test_node" args="$(arg bag_filenames)" output="screen">
+  <param name="imu_camera_topic" type="string" value="/camera/imu"/>
+  <param name="left_camera_topic" type="string" value="/camera/infra1/image_rect_raw/compressed"/>
+  <param name="right_camera_topic" type="string" value="/camera/infra2/image_rect_raw/compressed"/>
+</node>
+
+
+</launch>
