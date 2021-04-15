@@ -133,17 +133,18 @@ include_directories(
 # include
 	${PCL_INCLUDE_DIRS}
   ${catkin_INCLUDE_DIRS}
-${OpenCV_INCLUDE_DIR}
+  ${OpenCV_INCLUDE_DIR}
   ${Glog_INLUCDE_DIRS}
   ${CERES_INCLUDE_DIRS}
   ${GTSAM_INCLUDE_DIR}
+  ${GTEST_INCLUDE_DIR}
 )
 
 link_directories(
 	${PCL_LIBRARY_DIRS}
   ${GLOG_LIBRARIES}
   ${GTEST_LIBRARIES}
-   ${GTSAM_LIBRARY_DIRS}
+  ${GTSAM_LIBRARY_DIRS}
 )
 ## Declare a C++ library
 # add_library(${PROJECT_NAME}
@@ -160,7 +161,7 @@ link_directories(
 ## The recommended prefix ensures that target names across packages don't collide
 add_executable(${PROJECT_NAME}_stereo_node src/stereo_test.cpp )
 # add_executable(${PROJECT_NAME}_gtsam_test_node src/gtsam_test.cpp)
-
+add_executable(${PROJECT_NAME}_pose_slide_window_test src/pose_slide_window_test.cpp )
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
 ## target back to the shorter version for ease of user use
@@ -178,22 +179,22 @@ add_executable(${PROJECT_NAME}_stereo_node src/stereo_test.cpp )
  ${PCL_LIBRARIES}
  ${EIGEN3_LIBS}
  ${GLOG_LIBRARIES}
- ${GTEST_LIBRARIES}
    ${CERES_LIBRARIES}
   ${OpenCV_LIBS}
  -pthread
  )
-#  target_link_libraries(${PROJECT_NAME}_gtsam_test_node
-#  ${catkin_LIBRARIES}
-#  ${PCL_LIBRARIES}
-#  ${EIGEN3_LIBS}
-#  ${GLOG_LIBRARIES}
-#  ${GTEST_LIBRARIES}
-#    ${CERES_LIBRARIES}
-#   ${OpenCV_LIBS}
-#   -lgtsam
-#  -pthread
-#  )
+ target_link_libraries(${PROJECT_NAME}_pose_slide_window_test
+ ${catkin_LIBRARIES}
+ ${PCL_LIBRARIES}
+ ${EIGEN3_LIBS}
+ ${GLOG_LIBRARIES}
+ ${GTEST_LIBRARIES}
+   ${CERES_LIBRARIES}
+  ${OpenCV_LIBS}
+    gtest_main.a
+  -lgtsam
+ -pthread
+ )
 
 #############
 ## Install ##

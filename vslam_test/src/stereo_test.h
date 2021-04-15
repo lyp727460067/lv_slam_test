@@ -45,7 +45,7 @@ class VTrack
      for (int i = 0; i < status.size(); i++) {
        if (status[i]) {
          int id = pre_frame_inter->first;
-         cv::Point2f velocity = {pre_frame_point[i] - curr_frame_point[i]};
+         cv::Point2f velocity = {curr_frame_point[i]-pre_frame_point[i]  };
          track_points.emplace(
              id, KeyPoint{curr_frame_point[i], {velocity.x, velocity.y}});
        }
@@ -133,6 +133,8 @@ class VTrack
     FrameImag *curr_img = new FrameImag{Frame(),left_cam};
     std::cout<<"Tracking"<<std::endl;
     auto track_points  = OpticalTracking(cv::Mat(),pre_img,curr_img);
+
+
     curr_img->frame.keyPoints_ = track_points; 
     ShowTracker(curr_img);
 

@@ -51,8 +51,8 @@ struct ReProjectionErr {
       float fx = (K.at<float>(0, 0));
       float cx = (K.at<float>(0, 2));
       float cy = (K.at<float>(1, 2));
-      rx_ = ((rx_)-cx) * rz_ / fx;
-      ry_ = ((ry_)-cy) * rz_ / fx;
+      rx_ = ((rx_* rz_)-cx)  / fx;
+      ry_ = ((ry_* rz_)-cy)  / fx;
     }
 
   template <typename T>
@@ -112,48 +112,67 @@ class PoseSlideWindow
   SliedeWindowResult  Insert(const Frame& frame)
   {
 
-    Eigen::Vector2d  sum_parallax ;
+    double sum_parallax ;
     for(auto point:frame.keyPoints_){
-      sum_parallax+=point.second.velocity;
+      sum_parallax+=(point.second.velocity).cwiseAbs().norm();
     }
-    Eigen::Vector2d ave_parellax =sum_parallax/frame.keyPoints_.size();
-    std::cout<<"ave_parellax"<<ave_parellax[0]<<std::endl;
+    double  ave_parellax =sum_parallax/frame.keyPoints_.size();
+    std::cout<<"ave_parellax"<<ave_parellax<<std::endl;
     if (frames_.size() == window_size) {
-      if (ave_parellax[0] < 10) {
-        DeleteFrame((--frames_.end())->first);
-      } else {
+     // if (ave_parellax < 10) {
+     //   DeleteFrame((--frames_.end())->first);
+    //  } else {
         DeleteFrame(frames_.begin()->first);
-      }
+   //  }
     }
-    std::cout<<"InsertFrame"<<std::endl;
     InsertFrame(frame);
-    std::cout<<"Opimizetion"<<std::endl;
     Opimizetion();
 
     Eigen::Matrix4d pose = Eigen::Matrix4d::Identity();
    
     pose.block<3,3>(0,0)  =  (--frames_.end())->second->pose_q.toRotationMatrix();
     pose.block<3,1>(0,3)  =  (--frames_.end())->second->pose_t;
-    std::cout<<pose<<std::endl;
     return {pose};
    
   };
 
   
+  std::vector<Eigen::Matrix4f> GetSlidesPose(){
+    Eigen::Matrix4f pose = Eigen::Matrix4f::Identity();
+    std::vector<Eigen::Matrix4f> pose_t;
+    for(auto const & frame:frames_){
+      std::cout<<frame.second->keyPoints_[0].point<<std::endl;
 
+      auto q  =  frame.second->pose_q;
+      auto t  =  frame.second->pose_t;
+      pose.block<3, 3>(0, 0) = q.toRotationMatrix().template cast<float>();
+      pose.block<3, 1>(0, 3) = t.template cast<float>();
+      pose_t.push_back(pose);
+    }
+    return pose_t;
+  }
 
   private:
    void Opimizetion() {
      if(frames_.size()<window_size)return ;
+     std::cout<<frames_.size()<<std::endl;
      ceres::Problem problem;
     ceres::LossFunction *loss_function;
     loss_function = new ceres::HuberLoss(1.0);
      ceres::LocalParameterization* quaternion_local =
          new ceres::EigenQuaternionParameterization;
+            for(auto corres:key_point_corresponding_){
+      std::cout<<corres.first<<" "<<corres.second<<std::endl;
+    }
+
+
      for (auto iter = key_point_corresponding_.begin();
           iter != key_point_corresponding_.end();
           iter = key_point_corresponding_.upper_bound(iter->first)) {
        int count = key_point_corresponding_.count(iter->first);
+       std::cout<<iter->first<<std::endl;
+       std::cout<<count<<std::endl;
+       std::cout<<"i"<<std::endl;
        if (count < 2) continue;
        std::pair<std::multimap<int, int>::iterator,
                  std::multimap<int, int>::iterator>
@@ -170,14 +189,18 @@ class PoseSlideWindow
          float rz = frames_[range_iter.first->second]
                          ->keyPoints_[range_iter.first->first]
                          .depth;
-         if(rz <0  || rz >50)continue;
+         if(rz <0 )continue;
+         std::cout<<"test"<<std::endl;
+        // std::cout<<"first frame id="<<range_iter.first->second<<"sencode frame id ="<<it->second<<"\n"
+        // <<"with key point id = "<<it->first <<" rz= "<<rz<< "\n"
+        // <<"  u = "<<u<< "  v  = "<<v<<std::endl;
+
          problem.AddResidualBlock(
              ReProjectionErr::Creat(u, v, rx, ry, rz), loss_function,
              frames_[range_iter.first->second]->pose_t.data(),
              frames_[range_iter.first->second]->pose_q.coeffs().data(),
              frames_[it->second]->pose_t.data(),
              frames_[it->second]->pose_q.coeffs().data());
-
          problem.SetParameterization(
              frames_[range_iter.first->second]->pose_q.coeffs().data(),
              quaternion_local);
@@ -185,20 +208,22 @@ class PoseSlideWindow
              frames_[it->second]->pose_q.coeffs().data(), quaternion_local);
        }
      }
-    std::cout<<"options"<<std::endl;
      ceres::Solver::Options options;
      problem.SetParameterBlockConstant(
          frames_.begin()->second->pose_q.coeffs().data());
      problem.SetParameterBlockConstant(frames_.begin()->second->pose_t.data());
      options.minimizer_progress_to_stdout = false;
      options.linear_solver_type = ceres::DENSE_SCHUR;
+     options.num_threads = 12;
      options.trust_region_strategy_type = ceres::DOGLEG;
      ceres::Solver::Summary summary;
-    // ceres::Solve(options, &problem, &summary);
+    ceres::Solve(options, &problem, &summary);
+    //delete loss_function;
+    //delete quaternion_local;
 
    }
 
-  int window_size  = 5;
+  int window_size  = 10;
   void InsertFrame(const Frame&frame){
     Frame * temp_fram  = new Frame();
     *temp_fram = frame;
@@ -209,6 +234,7 @@ class PoseSlideWindow
    frame_id++;
   }
   void DeleteFrame(int frame_id){
+    std::cout<<frame_id<<std::endl;
     for (auto point : frames_[frame_id]->keyPoints_) {
       int count = key_point_corresponding_.count(point.first);
       if (count != 0) {
@@ -222,9 +248,14 @@ class PoseSlideWindow
         }
       }
     }
+    frames_[frame_id]  = nullptr;    
     delete  frames_[frame_id];
-    frames_[frame_id]  = nullptr;
     frames_.erase(frame_id);
+    // std::cout<<"delete succudes"<<std::endl;
+    // for(auto corres:key_point_corresponding_){
+    //   std::cout<<corres.second<<std::endl;
+    // }
+
 
   }
 
