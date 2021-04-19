@@ -149,12 +149,14 @@ class PoseSlideWindow {
     }
     double ave_parellax = sum_parallax / frame.keyPoints_.size();
     std::cout << "ave_parellax" << ave_parellax << std::endl;
+    static  int ration  = 0;
     if (frames_.size() == window_size) {
-       if (ave_parellax < 0.2) {
-         DeleteFrame((--frames_.end())->first);
-        } else {
-      DeleteFrame(frames_.begin()->first);
-        }
+      if (++ration <1500) {
+        DeleteFrame((--frames_.end())->first);
+      } else {
+        ration = 0;
+        DeleteFrame(frames_.begin()->first);
+      }
     }
     InsertFrame(frame);
     Opimizetion();
@@ -188,13 +190,12 @@ class PoseSlideWindow {
   
   void Opimizetion() {
     if (frames_.size() < window_size) return;
-    std::cout << frames_.size() << std::endl;
+
     ceres::Problem problem;
     ceres::LossFunction* loss_function;
     loss_function = new ceres::HuberLoss(1.0);
     ceres::LocalParameterization* quaternion_local =
-        new ceres::EigenQuaternionParameterization;
-    int ration  = 0;       
+        new ceres::EigenQuaternionParameterization;   
     for (auto iter = key_point_corresponding_.begin();
          iter != key_point_corresponding_.end();
          iter = key_point_corresponding_.upper_bound(iter->first)) {
@@ -204,10 +205,10 @@ class PoseSlideWindow {
                 std::multimap<int, int>::iterator>
           range_iter = key_point_corresponding_.equal_range(iter->first);
 
+
+
       for (auto it = std::next(range_iter.first); it != range_iter.second;
            it++) {
-        ration++;
-
         float u = frames_[it->second]->keyPoints_[it->first].point.x;
         float v = frames_[it->second]->keyPoints_[it->first].point.y;
         float rx = frames_[range_iter.first->second]
@@ -220,6 +221,12 @@ class PoseSlideWindow {
                        ->keyPoints_[range_iter.first->first]
                        .depth;
         if (rz < 0) continue;
+
+      //   std::cout<<"first frame id="<<range_iter.first->second<<"sencode frame id ="<<it->second<<"\n"
+      //  <<"with key point id = "<<it->first <<" rz= "<<rz<< "\n"
+      //   <<"  u = "<<u<< "  v  = "<<v<<std::endl;
+
+
         problem.AddResidualBlock(
             ReProjectionErr::Creat(u, v, rx, ry, rz), loss_function,
             frames_[range_iter.first->second]->pose_t.data(),
@@ -247,7 +254,7 @@ class PoseSlideWindow {
     ceres::Solve(options, &problem, &summary);
   }
 
-  int window_size = 5;
+  int window_size = 10;
   void InsertFrame(const Frame& frame) {
     Frame* temp_fram = new Frame();
     *temp_fram = frame;
@@ -258,7 +265,7 @@ class PoseSlideWindow {
     frame_id++;
   }
   void DeleteFrame(int frame_id) {
-    std::cout << frame_id << std::endl;
+
     for (auto point : frames_[frame_id]->keyPoints_) {
       int count = key_point_corresponding_.count(point.first);
       if (count != 0) {

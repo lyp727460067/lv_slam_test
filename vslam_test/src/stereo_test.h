@@ -34,8 +34,7 @@ class VTrack {
         KeyPointToCvPoints(pre_frame->frame.keyPoints_);
 
     std::vector<cv::Point2f> curr_frame_point;
-    std::cout << "pre_frame_point.size()" << pre_frame_point.size()
-              << std::endl;
+
     cv::calcOpticalFlowPyrLK(pre_frame->img, cur_frame->img, pre_frame_point,
                              curr_frame_point, status, err, cv::Size(21, 21),
                              1);
@@ -50,6 +49,8 @@ class VTrack {
       }
       pre_frame_inter++;
     }
+      int inlier_count = std::count(status.begin(), status.end(), 1);
+    std::cout<<"calcOpticalFlowPyrLK inlier_count "<<inlier_count<<std::endl;
     return RemoveOutLiner(pre_frame->frame.keyPoints_, track_points);
   }
   std::map<int, KeyPoint> RemoveOutLiner(
@@ -64,7 +65,8 @@ class VTrack {
     std::vector<uint8_t> status;
     cv::Mat F = cv::findFundamentalMat(cv_pre_points, cv_cur_points,
                                        cv::FM_RANSAC, 1.0, 0.99, status);
-
+    int inlier_count = std::count(status.begin(), status.end(), 1);
+    std::cout<<"findFundamentalMat inlier_count "<<inlier_count<<std::endl;
     int i = 0;
     for (auto point : cur_points) {
       if (status[i++]) {
@@ -96,14 +98,15 @@ class VTrack {
   }
 
   cv::Mat GetMask(const cv::Mat& cam, const std::map<int, KeyPoint>& points) {
-    cv::Mat mask = cv::Mat(cam.size(), CV_8UC1, cv::Scalar(100));
+    cv::Mat mask = cv::Mat::ones(cam.size(), CV_8UC1);
     for (auto point : points) {
       cv::Point2f cvpoint = point.second.point;
       if (mask.at<uint8_t>(cvpoint.y, cvpoint.x)) {
         const int min_feat_dist = 10;
         cv::circle(mask, cvpoint, min_feat_dist, cv::Scalar(0), cv::FILLED);
       }
-    }
+    }   
+
     return mask;
   }
 
@@ -125,11 +128,13 @@ class VTrack {
     }
     FrameImag* curr_img = new FrameImag{Frame(), left_cam};
     auto track_points = OpticalTracking(cv::Mat(), pre_img, curr_img);
+    std::cout << "track_points.size()"
+                << track_points.size() << std::endl;
     curr_img->frame.keyPoints_ = track_points;
     ShowTracker(curr_img);
 
     auto ex_feature = ExtraFeature(GetMask(left_cam, track_points), left_cam,
-                                   50 - track_points.size());
+                                   100 - track_points.size());
     track_points.insert(ex_feature.begin(), ex_feature.end());
     std::cout << "ExtraFeature" << ex_feature.size() << std::endl;
     FrameImag* right_img = new FrameImag{Frame(), right_cam};
