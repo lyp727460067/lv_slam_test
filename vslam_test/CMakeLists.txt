@@ -26,6 +26,7 @@ set(CMAKE_MODULE_PATH  ${PROJECT_SOURCE_DIR}/../Cmake/)
 find_package(Eigen3 REQUIRED)
 find_package(Glog REQUIRED)
 find_package(GTest  REQUIRED)
+find_package(Gflags  REQUIRED)
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
@@ -188,6 +189,7 @@ add_executable(${PROJECT_NAME}_pose_slide_window_test src/pose_slide_window_test
  ${catkin_LIBRARIES}
  ${PCL_LIBRARIES}
  ${EIGEN3_LIBS}
+
  ${GLOG_LIBRARIES}
  ${GTEST_LIBRARIES}
    ${CERES_LIBRARIES}

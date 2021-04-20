@@ -94,8 +94,9 @@ void stereo_tracker(const std::pair<cv::Mat, cv::Mat>& stereo_imag) {
 int main(int argc,char** argv)
 {
 
-  google::InitGoogleLogging(argv[0]);
-  google::ParseCommandLineFlags(&argc, &argv, true);
+  //google::InitGoogleLogging(argv[0]);
+  //google::ParseCommandLineFlags(&argc, &argv, true);
+
   ros::init(argc,argv,"stero_test");
    tf_broadcaster = new tf::TransformBroadcaster;
   std::string left_camera_topic;

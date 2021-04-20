@@ -121,40 +121,60 @@ class VTrack {
     cv::waitKey(1);
   }
 
-  Eigen::Matrix4d Tracking(const cv::Mat& left_cam, const cv::Mat& right_cam) {
-    if (pre_img != nullptr) {
-      std::cout << "pre_imgpre_img->frame.keyPoints_.size()"
-                << pre_img->frame.keyPoints_.size() << std::endl;
+  std::map<int, KeyPoint> FilterByMask(const cv::Mat& cam,
+                                       const std::map<int, KeyPoint>& points,
+                                       cv::Mat& mask1) {
+    cv::Mat mask = cv::Mat::ones(cam.size(), CV_8UC1);
+    std::map<int, KeyPoint> track_points;
+    for (auto it = points.rbegin(); it !=points.rend(); it++){
+      cv::Point2f cvpoint = it->second.point;
+    if (mask.at<uint8_t>(cvpoint.y, cvpoint.x)) {
+      const int min_feat_dist = 30;
+      cv::circle(mask, cvpoint, min_feat_dist, cv::Scalar(0), cv::FILLED);
+      track_points.insert(*it);
     }
-    FrameImag* curr_img = new FrameImag{Frame(), left_cam};
-    auto track_points = OpticalTracking(cv::Mat(), pre_img, curr_img);
-    std::cout << "track_points.size()"
-                << track_points.size() << std::endl;
-    curr_img->frame.keyPoints_ = track_points;
-    ShowTracker(curr_img);
-
-    auto ex_feature = ExtraFeature(GetMask(left_cam, track_points), left_cam,
-                                   100 - track_points.size());
-    track_points.insert(ex_feature.begin(), ex_feature.end());
-    std::cout << "ExtraFeature" << ex_feature.size() << std::endl;
-    FrameImag* right_img = new FrameImag{Frame(), right_cam};
-
-    std::cout << "track_points.size()" << track_points.size() << std::endl;
-    curr_img->frame.keyPoints_ = track_points;
-    auto right_track_points = OpticalTracking(cv::Mat(), curr_img, right_img);
-    TriangulateTwoframe(Eigen::Matrix4f::Identity(), curr_img->frame.keyPoints_,
-                        right_track_points);
-    delete right_img;
-
-    Frame curr_frame = {curr_img->frame.keyPoints_};
-    auto pose_end = pose_slide_window_.Insert(curr_frame);
-    if (pre_img != nullptr) {
-      delete pre_img;
-    }
-    pre_img = curr_img;
-
-    return pose_end.pose_end_;
   }
+  mask1 = mask.clone();
+  return track_points;
+}
+
+Eigen::Matrix4d
+Tracking(const cv::Mat& left_cam, const cv::Mat& right_cam) {
+  if (pre_img != nullptr) {
+    std::cout << "pre_imgpre_img->frame.keyPoints_.size()"
+              << pre_img->frame.keyPoints_.size() << std::endl;
+  }
+  FrameImag* curr_img = new FrameImag{Frame(), left_cam};
+  auto track_points = OpticalTracking(cv::Mat(), pre_img, curr_img);
+  cv::Mat mask;
+  track_points = FilterByMask(left_cam, track_points,mask);
+
+  std::cout << "track_points.size()" << track_points.size() << std::endl;
+  curr_img->frame.keyPoints_ = track_points;
+  ShowTracker(curr_img);
+
+  auto ex_feature =
+      ExtraFeature(std::move(mask), left_cam, 1000 - track_points.size());
+  track_points.insert(ex_feature.begin(), ex_feature.end());
+  std::cout << "ExtraFeature" << ex_feature.size() << std::endl;
+  FrameImag* right_img = new FrameImag{Frame(), right_cam};
+
+  std::cout << "track_points.size()" << track_points.size() << std::endl;
+  curr_img->frame.keyPoints_ = track_points;
+  auto right_track_points = OpticalTracking(cv::Mat(), curr_img, right_img);
+  TriangulateTwoframe(Eigen::Matrix4f::Identity(), curr_img->frame.keyPoints_,
+                      right_track_points);
+  delete right_img;
+
+  Frame curr_frame = {curr_img->frame.keyPoints_};
+  auto pose_end = pose_slide_window_.Insert(curr_frame);
+  if (pre_img != nullptr) {
+    delete pre_img;
+  }
+  pre_img = curr_img;
+
+  return pose_end.pose_end_;
+}
   Eigen::Vector2f CvPoint2Eigen(cv::Point2f& point) {
     return Eigen::Vector2f{point.x, point.y};
   }

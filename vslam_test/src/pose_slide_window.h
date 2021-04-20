@@ -61,20 +61,20 @@ struct ReProjectionErr {
     Eigen::Map<const Eigen::Quaternion<T>> q2(q2_);
 
     Eigen::Quaternion<T> relative_q = q2.inverse() * q1;
-    Eigen::Matrix<T, 3, 1> relative_t = q2.inverse().toRotationMatrix() * t1 -
-                                        q2.inverse().toRotationMatrix() * t2;
+    Eigen::Matrix<T, 3, 1> relative_t = q2.inverse() * (t1 -t2);
+                                       
 
     Eigen::Matrix<T, 3, 1> rel_p{T(rx_), T(ry_), T(rz_)};
     Eigen::Matrix<T, 3, 1> project_p =
-        relative_q.toRotationMatrix() * rel_p + relative_t;
+        relative_q * rel_p + relative_t;
     T fx = T(K.at<float>(0, 0));
     T cx = T(K.at<float>(0, 2));
     T cy = T(K.at<float>(1, 2));
     T u = (project_p[0] * fx + cx) / project_p[2];
     T v = (project_p[1] * fx + cy) / project_p[2];
 
-    residul[0] = (T(x_) - u);
-    residul[1] = (T(y_) - v);
+    residul[0] = T(0.1)*(T(x_) - u);
+    residul[1] = T(0.1)*(T(y_) - v);
 
     return true;
   }
@@ -96,6 +96,68 @@ struct ReProjectionErr {
   float ry_;
   float rz_;
 };
+
+
+
+// struct ReProjectionTwoPointOneFrame {
+//  public:
+//   ReProjectionTwoPointOneFrame(const Eigen::Vector3f &point0,const Eigen::Vector3f& point1)
+//       :point0_(point0),point1_(point1) {
+//     float fx = (K.at<float>(0, 0));
+//     float cx = (K.at<float>(0, 2));
+//     float cy = (K.at<float>(1, 2));
+
+//     point0_.x()  = ((point0_.x() * point0_.z()) - cx) / fx;
+//     point0_.y()  = ((point0_.y() * point0_.z()) - cy) / fx;
+
+//     point1_.x()  = ((point1_.x() * point1_.z()) - cx) / fx;
+//     point1_.y()  = ((point1_.y() * point1_.z()) - cy) / fx;
+
+//   }
+
+//   template <typename T>
+//   bool operator()(const T* t1_, const T* q1_, const T* t2_, const T* q2_,
+//                   T* residul) const {
+//     Eigen::Map<const Eigen::Matrix<T, 3, 1>> t1(t1_);
+//     Eigen::Map<const Eigen::Matrix<T, 3, 1>> t2(t2_);
+//     Eigen::Map<const Eigen::Quaternion<T>> q1(q1_);
+//     Eigen::Map<const Eigen::Quaternion<T>> q2(q2_);
+
+//     Eigen::Quaternion<T> relative_q = q2.inverse() * q1;
+//     Eigen::Matrix<T, 3, 1> relative_t = q2.inverse().toRotationMatrix() * t1 -
+//                                         q2.inverse().toRotationMatrix() * t2;
+
+//     Eigen::Matrix<T, 3, 1> rel_p =  point0.template cast<T>();
+//     Eigen::Matrix<T, 3, 1> project_p =
+//         relative_q.toRotationMatrix() * rel_p + relative_t;
+//     T fx = T(K.at<float>(0, 0));
+//     T cx = T(K.at<float>(0, 2));
+//     T cy = T(K.at<float>(1, 2));
+//     T u = (project_p[0] * fx + cx) / project_p[2];
+//     T v = (project_p[1] * fx + cy) / project_p[2];
+
+
+
+//     residul[0] = (T(x_) - u);
+//     residul[1] = (T(y_) - v);
+
+//     return true;
+//   }
+//   static ceres::CostFunction* Creat(float x, float y, float rx, float ry,
+//                                     float rz) {
+//     return new ceres::AutoDiffCostFunction<ReProjectionErr, 2, 3, 4, 3, 4>(
+//         new ReProjectionErr(x, y, rx, ry, rz));
+//   }
+
+//  private:
+//   const cv::Mat K =
+//       (cv::Mat_<float>(3, 3) << 385.0450439453125, 0.0, 323.1961975097656, 0.0,
+//        385.0450439453125, 244.11233520507812, 0.0, 0.0, 1.0);
+//   Eigen::Vector3f point0_;
+//   Eigen::Vector3f point1_; 
+// };
+
+
 
 struct SliedeWindowResult {
   Eigen::Matrix4d pose_end_;
@@ -136,7 +198,7 @@ class PoseSlideWindow {
       if (point[2] > 0) {
         auto& depth =
             frames_[range_iter.first->second]->keyPoints_[iter->first].depth;
-        if (depth == -1) {
+        if (depth <=-1  ||  depth >=100) {
           depth = point[2];
         }
       }
@@ -150,8 +212,8 @@ class PoseSlideWindow {
     double ave_parellax = sum_parallax / frame.keyPoints_.size();
     std::cout << "ave_parellax" << ave_parellax << std::endl;
     static  int ration  = 0;
-    if (frames_.size() == window_size) {
-      if (++ration <1500) {
+    if (frames_.size() == window_size  ) {
+      if (++ration <150 &&  ave_parellax <=2) {
         DeleteFrame((--frames_.end())->first);
       } else {
         ration = 0;
@@ -205,22 +267,26 @@ class PoseSlideWindow {
                 std::multimap<int, int>::iterator>
           range_iter = key_point_corresponding_.equal_range(iter->first);
 
-
-
+      float rx = frames_[range_iter.first->second]
+                     ->keyPoints_[range_iter.first->first]
+                     .point.x;
+      float ry = frames_[range_iter.first->second]
+                     ->keyPoints_[range_iter.first->first]
+                     .point.y;
+      float rz = frames_[range_iter.first->second]
+                     ->keyPoints_[range_iter.first->first]
+                     .depth;
+      std::cout << "rz" << rz << std::endl;
+      if (rz < 0 || rz > 30) continue;
       for (auto it = std::next(range_iter.first); it != range_iter.second;
            it++) {
         float u = frames_[it->second]->keyPoints_[it->first].point.x;
         float v = frames_[it->second]->keyPoints_[it->first].point.y;
-        float rx = frames_[range_iter.first->second]
-                       ->keyPoints_[range_iter.first->first]
-                       .point.x;
-        float ry = frames_[range_iter.first->second]
-                       ->keyPoints_[range_iter.first->first]
-                       .point.y;
-        float rz = frames_[range_iter.first->second]
-                       ->keyPoints_[range_iter.first->first]
-                       .depth;
-        if (rz < 0) continue;
+        float z = frames_[it->second]->keyPoints_[it->first].depth;
+        std::cout<<"z"<<z<<std::endl;
+;
+
+        
 
       //   std::cout<<"first frame id="<<range_iter.first->second<<"sencode frame id ="<<it->second<<"\n"
       //  <<"with key point id = "<<it->first <<" rz= "<<rz<< "\n"
