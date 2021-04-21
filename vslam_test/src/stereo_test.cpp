@@ -148,6 +148,7 @@ int main(int argc,char** argv)
               msg.instantiate<sensor_msgs::CompressedImage>();
           cv::Mat matrix = cv::imdecode(cv::Mat(msg_ptr->data),0);
           matrix.copyTo(stereo_imag.second);
+          std::cout<<matrix.size()<<std::endl;
        //  cv::imshow("right_camera", matrix);
        //   cv::waitKey(1);
         }

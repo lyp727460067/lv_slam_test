@@ -115,6 +115,7 @@ class VTrack {
     cv::cvtColor(frame->img, img_feat, cv::COLOR_GRAY2RGB);
     for (auto keypoint : frame->frame.keyPoints_) {
       // cv::line(img_feat,cur_feats[i],pre_feats[i],cv::Scalar(0,0,255));
+      if(keypoint.second.depth>0)
       cv::circle(img_feat, keypoint.second.point, 1, cv::Scalar(0, 255, 0));
     }
     cv::imshow("tracker show", img_feat);
@@ -151,7 +152,7 @@ Tracking(const cv::Mat& left_cam, const cv::Mat& right_cam) {
 
   std::cout << "track_points.size()" << track_points.size() << std::endl;
   curr_img->frame.keyPoints_ = track_points;
-  ShowTracker(curr_img);
+
 
   auto ex_feature =
       ExtraFeature(std::move(mask), left_cam, 1000 - track_points.size());
@@ -165,14 +166,14 @@ Tracking(const cv::Mat& left_cam, const cv::Mat& right_cam) {
   TriangulateTwoframe(Eigen::Matrix4f::Identity(), curr_img->frame.keyPoints_,
                       right_track_points);
   delete right_img;
-
+  ShowTracker(curr_img);
   Frame curr_frame = {curr_img->frame.keyPoints_};
   auto pose_end = pose_slide_window_.Insert(curr_frame);
   if (pre_img != nullptr) {
     delete pre_img;
   }
   pre_img = curr_img;
-
+  points_end = pose_end.points;
   return pose_end.pose_end_;
 }
   Eigen::Vector2f CvPoint2Eigen(cv::Point2f& point) {
@@ -180,13 +181,13 @@ Tracking(const cv::Mat& left_cam, const cv::Mat& right_cam) {
   }
   Eigen::Matrix4f RightCamPose() {
     Eigen::Matrix4f pose = Eigen::Matrix4f::Identity();
-    pose(2, 3) = 0.05;
+    pose(0, 3) = -0.05;
     return pose;
   }
   void TriangulateTwoframe(Eigen::Matrix4f pose, std::map<int, KeyPoint>& left,
                            const std::map<int, KeyPoint>& right) {
     for (auto& point : left) {
-      if (point.second.depth == -1) {
+      if (point.second.depth  <=0) {
         int left_id = point.first;
         cv::Point2f left_point = point.second.point;
         if (right.count(left_id) == 0) continue;
@@ -194,7 +195,10 @@ Tracking(const cv::Mat& left_cam, const cv::Mat& right_cam) {
         auto point_3d = TriangulateTwoPoint(
             Eigen::Matrix4f::Identity(), RightCamPose(),
             CvPoint2Eigen(left_point), CvPoint2Eigen(right_point));
-        point.second.depth = point_3d.z();
+        if(point_3d.z()>0){
+          point.second.depth = point_3d.z();
+        }
+       // std::cout<<"x= "<<point.second.point.x <<"y =  "<<point.second.point.y <<"z = " << point_3d.z()<<std::endl;
       }
     }
   }
@@ -209,14 +213,16 @@ Tracking(const cv::Mat& left_cam, const cv::Mat& right_cam) {
     Eigen::Vector2f point1{
         (point11.x() - K.at<double>(0, 2)) / K.at<double>(0, 0),
         (point11.y() - K.at<double>(1, 2)) / K.at<double>(1, 1)};
-
-    // std::cout<<point0<<point1<<std::endl;
+    Eigen::Vector2f diff_para = point00-point11;
+    if(diff_para[0]<1  || diff_para[1] >2 ) return Eigen::Vector3f(-1,-1,-1);
+     
     M.row(0) = point0.x() * pose0.row(2) - pose0.row(0);
     M.row(1) = point0.y() * pose0.row(2) - pose0.row(1);
     M.row(2) = point1.x() * pose1.row(2) - pose1.row(0);
     M.row(3) = point1.y() * pose1.row(2) - pose1.row(1);
     Eigen::Vector4f point =
         M.jacobiSvd(Eigen::ComputeFullV).matrixV().rightCols<1>();
+
     return point.block<3, 1>(0, 0) / point(3);
   }
   std::map<int, KeyPoint> ExtraFeature(cv::Mat&& mask, const cv::Mat& img,
@@ -233,8 +239,13 @@ Tracking(const cv::Mat& left_cam, const cv::Mat& right_cam) {
   }
 
   bool IsInited() { return pre_img != nullptr; }
+  std::vector<cv::Point3f> GetTrackPoints()
+  {
+    return points_end;
 
+  }
  private:
+ std::vector<cv::Point3f> points_end;
   FrameImag* pre_img;
   PoseSlideWindow pose_slide_window_;
   const cv::Mat K =
@@ -244,8 +255,9 @@ Tracking(const cv::Mat& left_cam, const cv::Mat& right_cam) {
 
 class StereoTrack {
  public:
+ 
   Eigen::Matrix4d Track(const cv::Mat& left_cam, const cv::Mat& right_cam) {
-    return tracker_.Tracking(left_cam, right_cam);
+   return   tracker_.Tracking(left_cam, right_cam);
 
     //  if (states == 0) {
     //    Init(left_cam, right_cam);
@@ -258,14 +270,16 @@ class StereoTrack {
     // return pose_;
   }
   std::vector<cv::Point3f> GetTrackPoints() {
-    Eigen::Matrix4d TrackPoseToPose = k_pose_.inverse() * pose_;
-    std::vector<cv::Point3f> return_points;
-    for (auto point : track_3dpoints) {
-      Eigen::Vector4d poin = TrackPoseToPose.inverse() *
-                             Eigen::Vector4d(point.x, point.y, point.z, 1);
-      return_points.push_back({poin[0], poin[1], poin[2]});
-    }
-    return return_points;
+     return tracker_.GetTrackPoints();
+   
+    // Eigen::Matrix4d TrackPoseToPose = k_pose_.inverse() * pose_;
+    // std::vector<cv::Point3f> return_points;
+    // for (auto point : track_3dpoints) {
+    //   Eigen::Vector4d poin = TrackPoseToPose.inverse() *
+    //                          Eigen::Vector4d(point.x, point.y, point.z, 1);
+    //   return_points.push_back({poin[0], poin[1], poin[2]});
+    // }
+    // return return_points;
   }
   cv::Mat GetVisuImag() { return feats_img; }
 
@@ -512,7 +526,7 @@ class StereoTrack {
   const cv::Mat dist_coeffs = cv::Mat::zeros(5, 1, CV_64FC1);
   const int max_feats_size = 1000;
   const int min_feat_dist = 10;
-  const int min_disparity = 3;
+  const int min_disparity = 1;
   const int max_epipolar = 2;
   const int min_feat_cnt = 50;
   const double base_line = 0.05;

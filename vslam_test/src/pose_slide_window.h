@@ -18,7 +18,7 @@ struct KeyPoint {
 class Frame {
  public:
   std::map<int, KeyPoint> keyPoints_;
-  Eigen::Vector3d pose_t = Eigen::Vector3d::Identity();
+  Eigen::Vector3d pose_t = Eigen::Vector3d::Zero();
   Eigen::Quaterniond pose_q = Eigen::Quaterniond::Identity();
 };
 
@@ -73,8 +73,8 @@ struct ReProjectionErr {
     T u = (project_p[0] * fx + cx) / project_p[2];
     T v = (project_p[1] * fx + cy) / project_p[2];
 
-    residul[0] = T(0.1)*(T(x_) - u);
-    residul[1] = T(0.1)*(T(y_) - v);
+    residul[0] = T(1)*(T(x_) - u);
+    residul[1] = T(1)*(T(y_) - v);
 
     return true;
   }
@@ -161,11 +161,12 @@ struct ReProjectionErr {
 
 struct SliedeWindowResult {
   Eigen::Matrix4d pose_end_;
+  std::vector<cv::Point3f> points;
 };
 
 class PoseSlideWindow {
  public:
-
+  
   void TriangulateInCorrespond() {
     for (auto iter = key_point_corresponding_.begin();
          iter != key_point_corresponding_.end();
@@ -183,8 +184,11 @@ class PoseSlideWindow {
            it++) {
         cv::Point2f cv_point1 =
             frames_[it->second]->keyPoints_[it->first].point;
+
+            
         cv_point1.x = (cv_point1.x - K.at<double>(0, 2)) / K.at<double>(1, 1);
         cv_point1.y = (cv_point1.y - K.at<double>(0, 2)) / K.at<double>(1, 1);
+
         auto&&  pose= frames_[it->second]->pose_q.toRotationMatrix();
         Eigen::Matrix4d pose0 = Eigen::Matrix4d::Identity();
         pose0.block<3,3>(0,0) =pose;
@@ -204,6 +208,8 @@ class PoseSlideWindow {
       }
     }
   }
+
+
   SliedeWindowResult Insert(const Frame& frame) {
     double sum_parallax;
     for (auto point : frame.keyPoints_) {
@@ -212,11 +218,16 @@ class PoseSlideWindow {
     double ave_parellax = sum_parallax / frame.keyPoints_.size();
     std::cout << "ave_parellax" << ave_parellax << std::endl;
     static  int ration  = 0;
+    static float sum_parellx_old  = 0;
+    sum_parellx_old+=ave_parellax;
     if (frames_.size() == window_size  ) {
-      if (++ration <150 &&  ave_parellax <=2) {
-        DeleteFrame((--frames_.end())->first);
+      if (++ration <150 &&  sum_parellx_old <=4) {
+        std::cout<<"insert end"<<std::endl;
+        DeleteFrame((std::prev(frames_.end()))->first);
       } else {
+        sum_parellx_old = 0;
         ration = 0;
+        std::cout<<"insert begin"<<std::endl;
         DeleteFrame(frames_.begin()->first);
       }
     }
@@ -229,7 +240,23 @@ class PoseSlideWindow {
     pose.block<3, 3>(0, 0) =
         (--frames_.end())->second->pose_q.toRotationMatrix();
     pose.block<3, 1>(0, 3) = (--frames_.end())->second->pose_t;
-    return {pose};
+    auto keypoints =  (--frames_.end())->second->keyPoints_;
+
+    float fx = (K.at<float>(0, 0));
+    float cx = (K.at<float>(0, 2));
+    float cy = (K.at<float>(1, 2));
+    std::vector<cv::Point3f> points;
+    for (auto point : keypoints) {
+      double z = point.second.depth;
+      double x = (point.second.point.x * z - cx) / fx;
+      double y = (point.second.point.y * z - cy) / fx;
+      if(z>0){
+          points.push_back({x, y, z});  
+      }
+
+    }
+    std::cout<<pose<<std::endl;
+    return {pose,points};
   };
 
   std::vector<Eigen::Matrix4f> GetSlidesPose() {
@@ -255,7 +282,7 @@ class PoseSlideWindow {
 
     ceres::Problem problem;
     ceres::LossFunction* loss_function;
-    loss_function = new ceres::HuberLoss(1.0);
+    loss_function = NULL;//new ceres::HuberLoss(2.0);
     ceres::LocalParameterization* quaternion_local =
         new ceres::EigenQuaternionParameterization;   
     for (auto iter = key_point_corresponding_.begin();
@@ -276,15 +303,16 @@ class PoseSlideWindow {
       float rz = frames_[range_iter.first->second]
                      ->keyPoints_[range_iter.first->first]
                      .depth;
-      std::cout << "rz" << rz << std::endl;
-      if (rz < 0 || rz > 30) continue;
+      std::cout << "rz" << rz << std::endl;                  
+      if (rz < 0 || rz > 200) continue;
       for (auto it = std::next(range_iter.first); it != range_iter.second;
            it++) {
         float u = frames_[it->second]->keyPoints_[it->first].point.x;
         float v = frames_[it->second]->keyPoints_[it->first].point.y;
         float z = frames_[it->second]->keyPoints_[it->first].depth;
-        std::cout<<"z"<<z<<std::endl;
-;
+
+
+
 
         
 
@@ -314,7 +342,7 @@ class PoseSlideWindow {
     options.minimizer_progress_to_stdout = false;
     options.linear_solver_type = ceres::DENSE_SCHUR;
     options.num_threads = 8;
-    options.use_inner_iterations= 8;
+    options.max_num_iterations= 30;
     options.trust_region_strategy_type = ceres::DOGLEG;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
@@ -324,6 +352,11 @@ class PoseSlideWindow {
   void InsertFrame(const Frame& frame) {
     Frame* temp_fram = new Frame();
     *temp_fram = frame;
+    if (frames_.size() > 2) {
+      temp_fram->pose_q = std::prev(frames_.end())->second->pose_q;
+      temp_fram->pose_t = std::prev(frames_.end())->second->pose_t;
+    }
+
     frames_.insert({frame_id, temp_fram});
     for (auto featur_id : frame.keyPoints_) {
       key_point_corresponding_.insert({featur_id.first, frame_id});

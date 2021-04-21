@@ -22,17 +22,17 @@ class PoseSldeWindonTest:public  testing::Test
        point.y = i;
        point.z = i;
      }
-     tansforms_.resize(200);
+     tansforms_.resize(10);
      float yaw = 0;
      float t = 0;
      for (auto& trans : tansforms_) {
        yaw += 0.02;
-       t += 0.5;
+       t -= 0.1;
        trans = Eigen::Matrix4f::Identity();
        Eigen::Matrix3f r;
        r = Eigen::AngleAxisf(yaw, Eigen::Vector3f::UnitY());
        trans.block<3, 3>(0, 0) = r;
-       trans(0, 3) = t;
+       trans(2, 3) = t;
        std::cout<<trans<<std::endl;
      }
 
@@ -82,16 +82,16 @@ TEST_F(PoseSldeWindonTest,TestInsert)
       KeyPoint key_point ;
       if(first==0){
         key_point.depth = trace_point.z;
-        key_point.point = cv::Point2f{preject_point.x, preject_point.y};
+        key_point.point = cv::Point2f{preject_point.x/trace_point.z, preject_point.y/trace_point.z};
         key_point.velocity = {0, 0};
       }else {
         key_point.depth = -1;
-        key_point.point = cv::Point2f{preject_point.x, preject_point.y};
+        key_point.point = cv::Point2f{preject_point.x/trace_point.z, preject_point.y/trace_point.z};
         cv::Point2f vel = key_point.point-last_frame.keyPoints_[i].point ;
         key_point.velocity = {vel.x,vel.y};
       }
       std::cout<<key_point.point<<"z = "<<key_point.depth <<std::endl;      
-      frame.keyPoints_.insert({i,key_point});
+      frame.keyPoints_.insert({index,key_point});
       index++;
     }
    // if(first==0){
