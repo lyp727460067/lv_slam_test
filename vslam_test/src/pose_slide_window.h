@@ -48,8 +48,8 @@ struct ReProjectionErr {
     float fx = (K.at<float>(0, 0));
     float cx = (K.at<float>(0, 2));
     float cy = (K.at<float>(1, 2));
-    rx_ = ((rx_ * rz_) - cx) / fx;
-    ry_ = ((ry_ * rz_) - cy) / fx;
+    rx_ = ((rx_  - cx)) / fx* rz_;
+    ry_ = ((ry_  - cy)) / fx* rz_;
   }
 
   template <typename T>
@@ -70,11 +70,11 @@ struct ReProjectionErr {
     T fx = T(K.at<float>(0, 0));
     T cx = T(K.at<float>(0, 2));
     T cy = T(K.at<float>(1, 2));
-    T u = (project_p[0] * fx + cx) / project_p[2];
-    T v = (project_p[1] * fx + cy) / project_p[2];
+    T u = (project_p[0] * fx) / project_p[2] + cx;
+    T v = (project_p[1] * fx) / project_p[2] + cy;
 
-    residul[0] = T(1)*(T(x_) - u);
-    residul[1] = T(1)*(T(y_) - v);
+    residul[0] = T(10)*(T(x_) - u);
+    residul[1] = T(10)*(T(y_) - v);
 
     return true;
   }
@@ -221,7 +221,7 @@ class PoseSlideWindow {
     static float sum_parellx_old  = 0;
     sum_parellx_old+=ave_parellax;
     if (frames_.size() == window_size  ) {
-      if (++ration <150 &&  sum_parellx_old <=4) {
+      if (++ration <150 &&  sum_parellx_old <=20) {
         std::cout<<"insert end"<<std::endl;
         DeleteFrame((std::prev(frames_.end()))->first);
       } else {
@@ -283,8 +283,11 @@ class PoseSlideWindow {
     ceres::Problem problem;
     ceres::LossFunction* loss_function;
     loss_function = NULL;//new ceres::HuberLoss(2.0);
+
     ceres::LocalParameterization* quaternion_local =
         new ceres::EigenQuaternionParameterization;   
+		problem.AddParameterBlock(frames_.begin()->second->pose_q.coeffs().data(),4);
+    problem.AddParameterBlock(frames_.begin()->second->pose_t.data(),3);
     for (auto iter = key_point_corresponding_.begin();
          iter != key_point_corresponding_.end();
          iter = key_point_corresponding_.upper_bound(iter->first)) {
@@ -311,11 +314,6 @@ class PoseSlideWindow {
         float v = frames_[it->second]->keyPoints_[it->first].point.y;
         float z = frames_[it->second]->keyPoints_[it->first].depth;
 
-
-
-
-        
-
       //   std::cout<<"first frame id="<<range_iter.first->second<<"sencode frame id ="<<it->second<<"\n"
       //  <<"with key point id = "<<it->first <<" rz= "<<rz<< "\n"
       //   <<"  u = "<<u<< "  v  = "<<v<<std::endl;
@@ -335,6 +333,7 @@ class PoseSlideWindow {
    
       }
     }
+
     ceres::Solver::Options options;
     problem.SetParameterBlockConstant(
         frames_.begin()->second->pose_q.coeffs().data());
@@ -342,7 +341,7 @@ class PoseSlideWindow {
     options.minimizer_progress_to_stdout = false;
     options.linear_solver_type = ceres::DENSE_SCHUR;
     options.num_threads = 8;
-    options.max_num_iterations= 30;
+    options.max_num_iterations= 10;
     options.trust_region_strategy_type = ceres::DOGLEG;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
