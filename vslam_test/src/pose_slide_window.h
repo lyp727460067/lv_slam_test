@@ -50,6 +50,7 @@ struct ReProjectionErr {
     float cy = (K.at<float>(1, 2));
     rx_ = ((rx_  - cx)) / fx* rz_;
     ry_ = ((ry_  - cy)) / fx* rz_;
+    std::cout<<"rx_"<<rx_<<"ry_"<<ry_<<"rz_"<<rz_<<std::endl;
   }
 
   template <typename T>
@@ -65,17 +66,19 @@ struct ReProjectionErr {
                                        
 
     Eigen::Matrix<T, 3, 1> rel_p{T(rx_), T(ry_), T(rz_)};
+    //std::cout<<rel_p<<std::endl;
     Eigen::Matrix<T, 3, 1> project_p =
         relative_q * rel_p + relative_t;
     T fx = T(K.at<float>(0, 0));
     T cx = T(K.at<float>(0, 2));
     T cy = T(K.at<float>(1, 2));
-    T u = (project_p[0] * fx) / project_p[2] + cx;
-    T v = (project_p[1] * fx) / project_p[2] + cy;
 
-    residul[0] = T(10)*(T(x_) - u);
-    residul[1] = T(10)*(T(y_) - v);
 
+    T u = project_p[0]/project_p[2]*fx  + cx;
+    T v = project_p[1]/project_p[2]*fx  + cy;
+    
+    residul[0] = T(10)*(u-T(x_));
+    residul[1] = T(10)*(v-T(y_));
     return true;
   }
   static ceres::CostFunction* Creat(float x, float y, float rx, float ry,
@@ -312,7 +315,7 @@ class PoseSlideWindow {
            it++) {
         float u = frames_[it->second]->keyPoints_[it->first].point.x;
         float v = frames_[it->second]->keyPoints_[it->first].point.y;
-        float z = frames_[it->second]->keyPoints_[it->first].depth;
+        //float z = frames_[it->second]->keyPoints_[it->first].depth;
 
       //   std::cout<<"first frame id="<<range_iter.first->second<<"sencode frame id ="<<it->second<<"\n"
       //  <<"with key point id = "<<it->first <<" rz= "<<rz<< "\n"
@@ -338,23 +341,24 @@ class PoseSlideWindow {
     problem.SetParameterBlockConstant(
         frames_.begin()->second->pose_q.coeffs().data());
     problem.SetParameterBlockConstant(frames_.begin()->second->pose_t.data());
-    options.minimizer_progress_to_stdout = false;
+    options.minimizer_progress_to_stdout =true;
     options.linear_solver_type = ceres::DENSE_SCHUR;
     options.num_threads = 8;
     options.max_num_iterations= 10;
     options.trust_region_strategy_type = ceres::DOGLEG;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
+    std::cout << summary.FullReport() << '\n' ;
   }
 
   int window_size = 10;
   void InsertFrame(const Frame& frame) {
     Frame* temp_fram = new Frame();
     *temp_fram = frame;
-    if (frames_.size() > 2) {
-      temp_fram->pose_q = std::prev(frames_.end())->second->pose_q;
-      temp_fram->pose_t = std::prev(frames_.end())->second->pose_t;
-    }
+    // if (frames_.size() > 2) {
+    //   temp_fram->pose_q = std::prev(frames_.end())->second->pose_q;
+    //   temp_fram->pose_t = std::prev(frames_.end())->second->pose_t;
+    // }
 
     frames_.insert({frame_id, temp_fram});
     for (auto featur_id : frame.keyPoints_) {

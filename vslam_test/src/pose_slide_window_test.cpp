@@ -16,21 +16,21 @@ class PoseSldeWindonTest : public testing::Test {
     for (auto& point : map_points) {
       i++;
       point.x = i;
-      point.y = i;
+      point.y = 3;
       point.z = i + 1;
     }
     tansforms_.resize(10);
     float yaw = 0;
     float t = 0;
     for (auto& trans : tansforms_) {
-      yaw += 0.02;
-      t -= 0.1;
+
       trans = Eigen::Matrix4f::Identity();
       Eigen::Matrix3f r;
       r = Eigen::AngleAxisf(yaw, Eigen::Vector3f::UnitY());
       trans.block<3, 3>(0, 0) = r;
       trans(2, 3) = t;
-      std::cout << trans << std::endl;
+       yaw += 0.02;
+      t -= 0.1;     
     }
 
     Eigen::Matrix3f m_k;
@@ -74,6 +74,7 @@ TEST_F(PoseSldeWindonTest, TestInsert) {
     Frame frame;
     for (auto map_point : map_points) {
       auto trace_point = ProjectPoint(kt.inverse(), Cv2Eigen(map_point));
+      std::cout<<trace_point<<std::endl;
       auto preject_point = ProjectPoint(K, Cv2Eigen(trace_point));
       KeyPoint key_point;
       if (first == 0) {
@@ -96,6 +97,7 @@ TEST_F(PoseSldeWindonTest, TestInsert) {
     frame.pose_q =
         Eigen::Quaterniond(transform.block<3, 3>(0, 0).template cast<double>());
     frame.pose_t = transform.block<3, 1>(0, 3).template cast<double>();
+    std::cout<<frame.pose_t<<std::endl;
     // }
     first = true;
 
