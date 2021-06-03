@@ -50,7 +50,7 @@ struct ReProjectionErr {
     float cy = (K.at<float>(1, 2));
     rx_ = ((rx_  - cx)) / fx* rz_;
     ry_ = ((ry_  - cy)) / fx* rz_;
-    std::cout<<"rx_"<<rx_<<"ry_"<<ry_<<"rz_"<<rz_<<std::endl;
+   // std::cout<<"rx_"<<rx_<<"ry_"<<ry_<<"rz_"<<rz_<<std::endl;
   }
 
   template <typename T>
@@ -224,7 +224,7 @@ class PoseSlideWindow {
     static float sum_parellx_old  = 0;
     sum_parellx_old+=ave_parellax;
     if (frames_.size() == window_size  ) {
-      if (++ration <150 &&  sum_parellx_old <=20) {
+      if (++ration <150 &&  sum_parellx_old <=8) {
         std::cout<<"insert end"<<std::endl;
         DeleteFrame((std::prev(frames_.end()))->first);
       } else {
@@ -285,7 +285,7 @@ class PoseSlideWindow {
 
     ceres::Problem problem;
     ceres::LossFunction* loss_function;
-    loss_function = NULL;//new ceres::HuberLoss(2.0);
+    loss_function  = new ceres::HuberLoss(2.0);
 
     ceres::LocalParameterization* quaternion_local =
         new ceres::EigenQuaternionParameterization;   
@@ -309,7 +309,7 @@ class PoseSlideWindow {
       float rz = frames_[range_iter.first->second]
                      ->keyPoints_[range_iter.first->first]
                      .depth;
-      std::cout << "rz" << rz << std::endl;                  
+     // std::cout << "rz" << rz << std::endl;                  
       if (rz < 0 || rz > 200) continue;
       for (auto it = std::next(range_iter.first); it != range_iter.second;
            it++) {
@@ -341,24 +341,24 @@ class PoseSlideWindow {
     problem.SetParameterBlockConstant(
         frames_.begin()->second->pose_q.coeffs().data());
     problem.SetParameterBlockConstant(frames_.begin()->second->pose_t.data());
-    options.minimizer_progress_to_stdout =true;
+    //options.minimizer_progress_to_stdout =true;
     options.linear_solver_type = ceres::DENSE_SCHUR;
     options.num_threads = 8;
     options.max_num_iterations= 10;
     options.trust_region_strategy_type = ceres::DOGLEG;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
-    std::cout << summary.FullReport() << '\n' ;
+   // std::cout << summary.FullReport() << '\n' ;
   }
 
   int window_size = 10;
   void InsertFrame(const Frame& frame) {
     Frame* temp_fram = new Frame();
     *temp_fram = frame;
-    // if (frames_.size() > 2) {
-    //   temp_fram->pose_q = std::prev(frames_.end())->second->pose_q;
-    //   temp_fram->pose_t = std::prev(frames_.end())->second->pose_t;
-    // }
+    if (frames_.size() > 2) {
+      temp_fram->pose_q = std::prev(frames_.end())->second->pose_q;
+      temp_fram->pose_t = std::prev(frames_.end())->second->pose_t;
+    }
 
     frames_.insert({frame_id, temp_fram});
     for (auto featur_id : frame.keyPoints_) {

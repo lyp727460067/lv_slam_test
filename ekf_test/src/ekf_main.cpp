@@ -116,107 +116,107 @@ int main(int argc,char** argv)
   //google::InitGoogleLogging(argv[0]);
   //google::ParseCommandLineFlags(&argc, &argv, true);
 
-  ros::init(argc,argv,"stero_test");
-   tf_broadcaster = new tf::TransformBroadcaster;
-  std::string left_camera_topic;
-  std::string right_camera_topic;
-	std::string odom_topic;
-  std::string imu_topic
+  // ros::init(argc,argv,"stero_test");
+  //  tf_broadcaster = new tf::TransformBroadcaster;
+  // std::string left_camera_topic;
+  // std::string right_camera_topic;
+	// std::string odom_topic;
+  // std::string imu_topic
 
-  ros::NodeHandle private_node("~");
-  ros::NodeHandle nh;
-  point_cloud_pub  = nh.advertise<sensor_msgs::PointCloud2>("track_point",2);
-  feat_img_pub = nh.advertise<sensor_msgs::Image>("featr_img",2);
-  private_node.param<std::string>("left_camera_topic",left_camera_topic,"/left_camera");
-  private_node.param<std::string>("right_camera_topic",right_camera_topic,"/right_camera");
+  // ros::NodeHandle private_node("~");
+  // ros::NodeHandle nh;
+  // point_cloud_pub  = nh.advertise<sensor_msgs::PointCloud2>("track_point",2);
+  // feat_img_pub = nh.advertise<sensor_msgs::Image>("featr_img",2);
+  // private_node.param<std::string>("left_camera_topic",left_camera_topic,"/left_camera");
+  // private_node.param<std::string>("right_camera_topic",right_camera_topic,"/right_camera");
    
-  private_node.param<std::string>("imu_topic",imu_topic,"/imu_topic");
-  private_node.param<std::string>("odom_topic",odom_topic,"/odom_topic");
+  // private_node.param<std::string>("imu_topic",imu_topic,"/imu_topic");
+  // private_node.param<std::string>("odom_topic",odom_topic,"/odom_topic");
 
 
-  ROS_INFO("\033[1;33m stero_test \033[0m \n");
-  if(argc!=2){
-    ROS_INFO("please input bag file");
-    return EXIT_FAILURE;
-  }
+  // ROS_INFO("\033[1;33m stero_test \033[0m \n");
+  // if(argc!=2){
+  //   ROS_INFO("please input bag file");
+  //   return EXIT_FAILURE;
+  // }
 
 
 
-  std::string inputbag_name(argv[1]);
+  // std::string inputbag_name(argv[1]);
 
-  std::thread thread_bag([&]() {
-    ROS_INFO("start thread_bag"); 
-    rosbag::Bag in_bag;
-    in_bag.open(inputbag_name, rosbag::bagmode::Read);
-    rosbag::View view(in_bag);
-    rosbag::View::const_iterator view_iterator = view.begin();
-    std::pair<cv::Mat,cv::Mat> stereo_imag;
-    for (auto view_iterator = view.begin(); view_iterator != view.end();
-         view_iterator++) {
-      rosbag::MessageInstance msg = *view_iterator;
+  // std::thread thread_bag([&]() {
+  //   ROS_INFO("start thread_bag"); 
+  //   rosbag::Bag in_bag;
+  //   in_bag.open(inputbag_name, rosbag::bagmode::Read);
+  //   rosbag::View view(in_bag);
+  //   rosbag::View::const_iterator view_iterator = view.begin();
+  //   std::pair<cv::Mat,cv::Mat> stereo_imag;
+  //   for (auto view_iterator = view.begin(); view_iterator != view.end();
+  //        view_iterator++) {
+  //     rosbag::MessageInstance msg = *view_iterator;
 
-      if (msg.isType<sensor_msgs::CompressedImage>()) {
+  //     if (msg.isType<sensor_msgs::CompressedImage>()) {
          
-        if (msg.getTopic() == left_camera_topic) {
-          sensor_msgs::CompressedImagePtr msg_ptr =
-              msg.instantiate<sensor_msgs::CompressedImage>();
-          cv::Mat matrix = cv::imdecode(cv::Mat(msg_ptr->data), 0);
-          matrix.copyTo(stereo_imag.first);
-        //  std::cout<<"left_camera_topic"<<std::endl;
-          cv::Mat clolor_map =matrix.clone();
-          cv::cvtColor(matrix,clolor_map,cv::COLOR_GRAY2RGB);
+  //       if (msg.getTopic() == left_camera_topic) {
+  //         sensor_msgs::CompressedImagePtr msg_ptr =
+  //             msg.instantiate<sensor_msgs::CompressedImage>();
+  //         cv::Mat matrix = cv::imdecode(cv::Mat(msg_ptr->data), 0);
+  //         matrix.copyTo(stereo_imag.first);
+  //       //  std::cout<<"left_camera_topic"<<std::endl;
+  //         cv::Mat clolor_map =matrix.clone();
+  //         cv::cvtColor(matrix,clolor_map,cv::COLOR_GRAY2RGB);
 
-        }
-        if (msg.getTopic() == right_camera_topic) {
-      //   std::cout<<"right_camera_topic"<<std::endl;
-          sensor_msgs::CompressedImagePtr msg_ptr =
-              msg.instantiate<sensor_msgs::CompressedImage>();
-          cv::Mat matrix = cv::imdecode(cv::Mat(msg_ptr->data),0);
-          matrix.copyTo(stereo_imag.second);
-          std::cout<<matrix.size()<<std::endl;
-       //  cv::imshow("right_camera", matrix);
-       //   cv::waitKey(1);
-        }
+  //       }
+  //       if (msg.getTopic() == right_camera_topic) {
+  //     //   std::cout<<"right_camera_topic"<<std::endl;
+  //         sensor_msgs::CompressedImagePtr msg_ptr =
+  //             msg.instantiate<sensor_msgs::CompressedImage>();
+  //         cv::Mat matrix = cv::imdecode(cv::Mat(msg_ptr->data),0);
+  //         matrix.copyTo(stereo_imag.second);
+  //         std::cout<<matrix.size()<<std::endl;
+  //      //  cv::imshow("right_camera", matrix);
+  //      //   cv::waitKey(1);
+  //       }
 
-				if (msg.getTopic() == right_camera_topic) {
-          sensor_msgs::CompressedImagePtr msg_ptr =
-              msg.instantiate<sensor_msgs::CompressedImage>();
-          cv::Mat matrix = cv::imdecode(cv::Mat(msg_ptr->data),0);
-          matrix.copyTo(stereo_imag.second);
-          std::cout<<matrix.size()<<std::endl;
+	// 			if (msg.getTopic() == right_camera_topic) {
+  //         sensor_msgs::CompressedImagePtr msg_ptr =
+  //             msg.instantiate<sensor_msgs::CompressedImage>();
+  //         cv::Mat matrix = cv::imdecode(cv::Mat(msg_ptr->data),0);
+  //         matrix.copyTo(stereo_imag.second);
+  //         std::cout<<matrix.size()<<std::endl;
 
-        }
+  //       }
 
-				if (msg.getTopic() == imu_topic) {
-          sensor_msgs::CompressedImagePtr msg_ptr =
-              msg.instantiate<nav_msgs::Odometry>();
-						ImuCallback(msg_ptr);
-        }
+	// 			if (msg.getTopic() == imu_topic) {
+  //         sensor_msgs::CompressedImagePtr msg_ptr =
+  //             msg.instantiate<nav_msgs::Odometry>();
+	// 					ImuCallback(msg_ptr);
+  //       }
 
-				if (msg.getTopic() ==odom_topic) {
-          sensor_msgs::CompressedImagePtr msg_ptr =
-              msg.instantiate<sensor_msgs::Imu>();
-					   OdometryCallback(msg_ptr);
+	// 			if (msg.getTopic() ==odom_topic) {
+  //         sensor_msgs::CompressedImagePtr msg_ptr =
+  //             msg.instantiate<sensor_msgs::Imu>();
+	// 				   OdometryCallback(msg_ptr);
 
-        }
-      }
-      if(!stereo_imag.first.empty() && !stereo_imag.second.empty()){
-        //std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        std::cout<<"stereo_tracker"<<std::endl;
-        stereo_tracker(stereo_imag);
-        stereo_imag =  std::make_pair<cv::Mat,cv::Mat>(cv::Mat(),cv::Mat());
-      }
+  //       }
+  //     }
+  //     if(!stereo_imag.first.empty() && !stereo_imag.second.empty()){
+  //       //std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  //       std::cout<<"stereo_tracker"<<std::endl;
+  //       stereo_tracker(stereo_imag);
+  //       stereo_imag =  std::make_pair<cv::Mat,cv::Mat>(cv::Mat(),cv::Mat());
+  //     }
 
 
 
-    }
-  });
-  ros::Rate rate(10);
-  while (ros::ok()) {
-    rate.sleep();
-    ros::spinOnce();
-  }
-  ros::shutdown();
+  //   }
+  // });
+  // ros::Rate rate(10);
+  // while (ros::ok()) {
+  //   rate.sleep();
+  //   ros::spinOnce();
+  // }
+  // ros::shutdown();
 
 }
 

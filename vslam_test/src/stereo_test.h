@@ -214,7 +214,7 @@ Tracking(const cv::Mat& left_cam, const cv::Mat& right_cam) {
         (point11.x() - K.at<double>(0, 2)) / K.at<double>(0, 0),
         (point11.y() - K.at<double>(1, 2)) / K.at<double>(1, 1)};
     Eigen::Vector2f diff_para = point00-point11;
-    if(diff_para[0]<3  || diff_para[1] >2 ) return Eigen::Vector3f(-1,-1,-1);
+    //if(diff_para[0]<3  || diff_para[1] >2 ) return Eigen::Vector3f(-1,-1,-1);
      
     M.row(0) = point0.x() * pose0.row(2) - pose0.row(0);
     M.row(1) = point0.y() * pose0.row(2) - pose0.row(1);
