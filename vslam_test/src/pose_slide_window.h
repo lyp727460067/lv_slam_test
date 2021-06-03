@@ -63,7 +63,8 @@ struct ReProjectionErr {
 
     Eigen::Quaternion<T> relative_q = q2.inverse() * q1;
     Eigen::Matrix<T, 3, 1> relative_t = q2.inverse() * (t1 -t2);
-                                       
+
+
 
     Eigen::Matrix<T, 3, 1> rel_p{T(rx_), T(ry_), T(rz_)};
     //std::cout<<rel_p<<std::endl;
@@ -72,7 +73,7 @@ struct ReProjectionErr {
     T fx = T(K.at<float>(0, 0));
     T cx = T(K.at<float>(0, 2));
     T cy = T(K.at<float>(1, 2));
-
+  
 
     T u = project_p[0]/project_p[2]*fx  + cx;
     T v = project_p[1]/project_p[2]*fx  + cy;
